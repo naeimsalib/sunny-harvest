@@ -50,37 +50,177 @@ html,body{margin:0;height:100%;overflow:hidden;
   display:flex;align-items:center;justify-content:center;font-size:15px;
   box-shadow:inset 0 -2px 0 rgba(0,0,0,0.12);}
 #lvlText{font-size:12.5px;line-height:1;}
-#lvlMini{height:5px;width:52px;background:#e9dcc4;border-radius:3px;overflow:hidden;margin-top:2px;}
-#lvlMiniFill{height:100%;width:0%;background:linear-gradient(90deg,var(--sun),var(--sun2));}
+/* The level's progress bar used to live here, inside the top-left pill. It
+   moved into #taskPanel (BACKLOG 3.3) so the bar and the tasks it measures are
+   one card. The pill keeps level + avatar, which is what ART-REFERENCE asks
+   of it. */
 #coinPill{font-size:15px;}
 #coinPill svg{flex:0 0 auto;}
-#verTag{position:absolute;right:10px;top:calc(env(safe-area-inset-top) + 42px);
-  font-size:9px;font-weight:800;color:rgba(255,255,255,0.85);
-  text-shadow:0 1px 2px rgba(0,0,0,0.4);pointer-events:none;z-index:20;}
+/* BACKLOG 3.5 — this was invisible at phone width. It sat at safe+42px while
+   #taskStrip sat at safe+46px on the SAME z-index, and the chips are opaque,
+   so the badge was painted behind them. That defeats standing rule 8: the
+   owner cannot confirm which build is on their phone. Moved to the bottom
+   right, which is the one corner nothing else occupies (the minimap is bottom
+   left, the ad rail is centre right), and darkened — light text on pale grass
+   was low contrast even where it did show.
+   NB: serve.sh, deploy.sh and simulator.sh all scrape the verTag element for
+   the version string they print, so its id and its plain-text content must
+   stay. Do NOT write that scraped pattern literally anywhere else in this
+   file (including in a comment like this one) — those scripts use a plain
+   grep, so a second occurrence makes them print two matches joined together.
+   That exact mistake was made here and caught by `npm run serve`. */
+#verTag{position:absolute;right:11px;bottom:calc(env(safe-area-inset-bottom) + 9px);
+  font-size:10px;font-weight:800;color:rgba(74,60,40,0.5);
+  text-shadow:0 1px 0 rgba(255,255,255,0.45);pointer-events:none;z-index:20;}
 
-/* ---------- task chips (top center, small) ---------- */
-#taskStrip{position:absolute;top:calc(env(safe-area-inset-top) + 46px);left:0;right:0;z-index:20;
-  display:flex;gap:5px;padding:0 10px;pointer-events:none;}
-.task{pointer-events:auto;flex:1;min-width:0;background:rgba(255,255,255,0.94);
-  border-radius:11px;padding:4px 6px 5px;box-shadow:0 3px 0 rgba(0,0,0,0.13);
-  display:flex;flex-direction:column;gap:2px;animation:taskIn .35s cubic-bezier(.34,1.56,.64,1);}
+/* Shown only when the device cannot give us a 3D context. Opaque and above
+   everything (the max z-index elsewhere is 200) so no HUD fragment shows
+   through — a half-drawn HUD over an empty world is what made this failure
+   read as "the game is broken" rather than "this browser can't run it". */
+#noWebGL{display:none;position:fixed;inset:0;z-index:9999;
+  background:#fdf7e8;padding:32px 26px;
+  flex-direction:column;align-items:center;justify-content:center;text-align:center;}
+#noWebGL.show{display:flex;}
+#noWebGL .emoji{font-size:54px;line-height:1;margin-bottom:18px;}
+#noWebGL h1{font-size:21px;font-weight:800;color:#5b4a33;margin:0 0 12px;}
+#noWebGL p{font-size:15px;line-height:1.5;color:#7a6a54;margin:0 0 10px;max-width:19em;}
+
+/* ---------- task HUD: one card holding the level meter + the chips ---------- */
+/* BACKLOG 3.1/3.3/3.4. One absolutely-positioned column; everything inside
+   flows, so nothing below needs a magic offset that has to be re-tuned every
+   time the chips change height. */
+#hudTop{position:absolute;top:calc(env(safe-area-inset-top) + 46px);left:0;right:0;z-index:20;
+  padding:0 10px;display:flex;flex-direction:column;gap:6px;pointer-events:none;}
+/* Warm cream so the white chips read as slots sitting ON a card. A white panel
+   behind white chips is mush — the figure/ground has to survive at arm's
+   length on a phone in daylight. */
+#taskPanel{background:rgba(252,246,232,0.92);border-radius:16px;padding:6px 8px 7px;
+  box-shadow:0 4px 0 rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.7);
+  display:flex;flex-direction:column;gap:5px;}
+/* 3.3 — the level bar moved OUT of the top-left pill and in here, above the
+   tasks, with "X / Y tasks" beside it (3.4). One idea, one place: the bar
+   measures the set, and the chips are a window onto that same set. */
+#taskMeterRow{display:flex;align-items:center;gap:8px;padding:0 2px;}
+#taskMeter{flex:1;height:7px;background:#e4d8bd;border-radius:4px;overflow:hidden;
+  box-shadow:inset 0 1px 2px rgba(0,0,0,0.10);}
+#taskMeterFill{height:100%;width:0%;border-radius:4px;
+  background:linear-gradient(90deg,var(--sun),var(--sun2));transition:width .3s;}
+#taskCount{font-size:10.5px;font-weight:800;color:var(--text2);white-space:nowrap;letter-spacing:.2px;}
+#taskStrip{display:flex;gap:6px;}
+/* 3.1b — a chip is ALWAYS one third of the strip, whether 3, 2 or 1 are
+   showing. The owner was explicit: with two left, "keep things the same size
+   always... the space where it holds the other two will be empty". `flex:1`
+   stretched the survivors ~50% wider, which reads as "my tasks got bigger"
+   instead of "one of my three slots is gone". */
+.task{pointer-events:auto;flex:0 0 calc((100% - 12px)/3);min-width:0;background:#fff;
+  border-radius:12px;padding:6px 8px 7px;box-shadow:0 2px 0 rgba(0,0,0,0.10);
+  display:flex;flex-direction:column;gap:4px;animation:taskIn .35s cubic-bezier(.34,1.56,.64,1);}
 @keyframes taskIn{from{transform:translateY(-12px) scale(.9);opacity:0;}to{transform:none;opacity:1;}}
-.task .tTitle{font-size:9px;font-weight:800;line-height:1.1;display:flex;gap:3px;align-items:center;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.task .tBar{height:5px;background:#e8dfc9;border-radius:3px;overflow:hidden;}
-.task .tFill{height:100%;width:0%;background:linear-gradient(90deg,#7cc94f,#4fae35);border-radius:3px;transition:width .3s;}
-.task .tNums{font-size:8px;font-weight:800;color:var(--text2);text-align:right;line-height:1;}
+/* 3.2 — bigger and bolder. Two lines instead of truncating to "…" (the middle
+   chip always did); the min-height keeps every chip's bar on the same line
+   whether its title wraps or not. */
+.task .tTitle{font-size:11px;font-weight:800;line-height:1.15;display:flex;gap:4px;align-items:flex-start;
+  min-height:2.2em;overflow:hidden;}
+.task .tTitle span:last-child{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow:hidden;}
+.task .tTitle span:first-child{flex:0 0 auto;font-size:12px;line-height:1.1;}
+.task .tBar{height:6px;background:#e8dfc9;border-radius:4px;overflow:hidden;}
+.task .tFill{height:100%;width:0%;background:linear-gradient(90deg,#7cc94f,#4fae35);border-radius:4px;
+  transition:width .3s;position:relative;overflow:hidden;}
+/* Wide and soft on purpose. A narrow hard glint is invisible on a 6px bar —
+   measured by freezing it mid-sweep and looking. This is broad enough that the
+   whole fill lifts gently as it passes, which reads as a glow rather than a
+   glint, and still has no geometry change anywhere. */
+.task .tFill::after{content:'';position:absolute;top:0;bottom:0;left:-30%;width:160%;
+  transform:translateX(-100%);opacity:0;
+  background:linear-gradient(100deg,rgba(255,255,255,0) 0%,rgba(255,255,255,0.45) 32%,
+    rgba(255,255,255,0.92) 50%,rgba(255,255,255,0.45) 68%,rgba(255,255,255,0) 100%);}
+/* margin-top:auto pins the body to the BOTTOM of the chip. Chips stretch to a
+   common height, so without this a plain progress bar floats high beside a
+   taller claim row and leaves a white gap under it. */
+.task .tBody{display:flex;flex-direction:column;gap:2px;margin-top:auto;}
+.task .tNums{font-size:10px;font-weight:800;color:var(--text2);text-align:right;line-height:1;}
+/* "This one just ticked." Fires ONLY on the chip whose counter actually moved
+   (BACKLOG 3.6): earning a coin nudges the coin task and leaves the other two
+   completely still.
+
+   REDESIGNED 2026-07-31 — the owner found the first version "too flashing".
+   It was a 0.28s scaleY(1.7) snap on the bar: at ~1.5 coins/sec that is a
+   hard geometry jump nearly twice a second, which reads as a flicker rather
+   than as feedback. Replaced with a light sweep that travels along the filled
+   part once — same information, no jolt, and slow enough (0.8s) that it can
+   only fire about every other tick, so it feels like a shimmer instead of a
+   strobe. The bar's own width change is already smoothed by its transition.
+
+   Rule 7 still governs: .tFill owns `width` via a CSS transition, so the sweep
+   lives on .tFill::after and moves transform + opacity only. Different
+   element, different properties — the two mechanisms cannot fight. */
+@keyframes taskSheen{
+  0%{transform:translateX(-100%);opacity:0;}
+  22%{opacity:1;}
+  78%{opacity:1;}
+  100%{transform:translateX(100%);opacity:0;}}
+.task.pulse .tFill::after{animation:taskSheen .7s cubic-bezier(.33,0,.25,1);}
 .task.done{background:linear-gradient(#fffbe8,#ffeeb0);animation:taskGlow 1.1s ease-in-out infinite;}
+/* Shown once every authored level is finished (BACKLOG 2.5). Deliberately
+   calm: it is a "you're ahead of us" state, not an error. */
+/* Full width, confirmed with the owner 2026-07-31 (the open choice in BACKLOG
+   3.1b): this is a MESSAGE, not a task, so it is not occupying one of the
+   three slots and the fixed-width rule does not apply to it. */
+.task.soon{flex:1 1 100%;background:rgba(255,255,255,0.9);align-items:center;text-align:center;}
+.task.soon .tTitle{white-space:normal;justify-content:center;color:var(--text2);min-height:0;}
+.task.soon .tTitle span:last-child{-webkit-line-clamp:2;}
 @keyframes taskGlow{0%,100%{box-shadow:0 3px 0 #d9b969;}50%{box-shadow:0 3px 0 #d9b969,0 0 12px rgba(255,200,60,.95);}}
-.claimRow{display:flex;gap:3px;}
-.claimBtn{flex:1;border:none;border-radius:7px;padding:3px 1px;font-family:inherit;font-weight:800;
-  font-size:8.5px;cursor:pointer;color:#fff;background:linear-gradient(var(--green),var(--green2));box-shadow:0 2px 0 #2f7a26;}
+/* BACKLOG 3.7 — a finished task used to vanish outright, because innerHTML=''
+   destroyed the element and left nothing to animate. The chip that leaves is
+   drawn as a detached copy pinned over where it just was, so it can fly off
+   while the slot behind it refills normally. Doing it this way keeps the exit
+   entirely out of the reconcile in renderTasks(): no half-dead node sits in
+   the flex row confusing the keyed diff or holding a slot open.
+   Selector is .task.done.taskGhost so it outranks .task.done's infinite glow —
+   otherwise the glow keeps the animation slot and the chip never leaves.
+
+   REDESIGNED 2026-07-31 to the owner's spec: "show a complete check mark, turn
+   the task container green, and slide it up and gracefully vanish". The first
+   version was a 0.45s grey drift — the owner's words were that they could see
+   it but it was "quick and hard to see". So the whole thing is now a legible
+   1.15s beat: settle, pop with the check springing in, a deliberate hold so
+   the tick is actually readable, then a slow rise that fades to nothing right
+   as it clears the top of the task card. It never leaves the card's airspace
+   and never flies off screen. */
+.task.done.taskGhost,.task.taskGhost{position:fixed;z-index:21;pointer-events:none;margin:0;
+  background:linear-gradient(#7ad35c,#46a832);
+  box-shadow:0 3px 0 #2f7a26, 0 8px 20px rgba(47,122,38,0.30);
+  animation:taskComplete 1.15s cubic-bezier(.25,.8,.3,1) forwards;}
+.taskGhost .tTitle{color:#fff;}
+.taskGhost .tDone{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:auto;}
+.taskGhost .tCheck{width:19px;height:19px;border-radius:50%;background:#fff;color:#3d9a2a;
+  font-size:13px;font-weight:900;line-height:1;display:flex;align-items:center;justify-content:center;
+  animation:taskCheckPop .42s cubic-bezier(.3,1.7,.5,1) .05s both;}
+.taskGhost .tGain{font-size:12.5px;font-weight:800;color:#fff;text-shadow:0 1px 0 rgba(0,0,0,0.15);}
+@keyframes taskCheckPop{
+  0%{transform:scale(0) rotate(-30deg);}
+  60%{transform:scale(1.22) rotate(5deg);}
+  100%{transform:scale(1) rotate(0);}}
+/* The rise is short on purpose — it fades out as it reaches the top edge of
+   the card rather than travelling up the screen. */
+@keyframes taskComplete{
+  0%{transform:translateY(0) scale(1);opacity:1;}
+  10%{transform:translateY(3px) scale(.965);opacity:1;}
+  26%{transform:translateY(-3px) scale(1.045);opacity:1;}
+  46%{transform:translateY(-5px) scale(1.01);opacity:1;}
+  64%{transform:translateY(-11px) scale(1);opacity:.95;}
+  100%{transform:translateY(-52px) scale(.9);opacity:0;}}
+.claimRow{display:flex;gap:4px;}
+.claimBtn{flex:1;border:none;border-radius:8px;padding:5px 1px;font-family:inherit;font-weight:800;
+  font-size:10px;cursor:pointer;color:#fff;background:linear-gradient(var(--green),var(--green2));box-shadow:0 2px 0 #2f7a26;}
 .claimBtn.x2{background:linear-gradient(#b47ff0,var(--purple));box-shadow:0 2px 0 #7a4fb0;}
 .claimBtn:active{transform:translateY(1px);}
-#boostRow{position:absolute;top:calc(env(safe-area-inset-top) + 96px);left:10px;z-index:20;display:flex;gap:5px;}
+/* Flows under #taskPanel inside #hudTop — no fixed offset to keep in sync. */
+#boostRow{display:flex;gap:5px;pointer-events:none;}
 .chip{background:rgba(255,255,255,0.94);border-radius:9px;padding:1px 8px;font-size:10px;font-weight:800;
   box-shadow:0 2px 0 rgba(0,0,0,0.12);animation:taskIn .3s;}
-.chip.boost{color:#e07d00;}.chip.bot{color:#7a4fd0;}
+.chip.boost{color:#e07d00;}.chip.bot{color:#7a4fd0;}.chip.wool{color:#c2571f;}
 
 /* ---------- left rail: square action buttons ---------- */
 #leftRail{position:absolute;left:8px;top:50%;transform:translateY(-50%);z-index:21;
@@ -208,16 +348,35 @@ html,body{margin:0;height:100%;overflow:hidden;
   <div id="topBar">
     <div class="pill" id="lvlPill">
       <div id="lvlAvatar">🌾</div>
-      <div><div id="lvlText">Farm Lv 1</div><div id="lvlMini"><div id="lvlMiniFill"></div></div></div>
+      <div><div id="lvlText">Farm Lv 1</div></div>
     </div>
     <div class="pill" id="coinPill">
       <svg viewBox="0 0 24 24" width="21" height="21"><circle cx="12" cy="12" r="10" fill="#e08c12"/><circle cx="12" cy="12" r="7.6" fill="#ffd44d"/><text x="12" y="16" text-anchor="middle" font-size="10" font-weight="bold" fill="#c07d00">$</text></svg>
       <span id="coinCount">0</span>
     </div>
   </div>
-  <div id="verTag">v4</div>
-  <div id="taskStrip"></div>
-  <div id="boostRow"></div>
+  <div id="verTag">v4.5</div>
+  <div id="noWebGL">
+    <div class="emoji">🌾</div>
+    <h1>This browser can't show the farm</h1>
+    <p>Sunny Harvest is a 3D game, and this browser has 3D graphics turned off.</p>
+    <p>Try opening it in Safari or Chrome on your phone — it works there.</p>
+  </div>
+  <!-- One container for the whole task HUD (BACKLOG 3.1): the level meter and
+       the task chips are one idea and now read as one card. #boostRow lives in
+       the same column so it flows UNDER the panel automatically — it used to be
+       pinned at a hand-tuned safe+96px, which silently assumed how tall the
+       chips were. Taller chips (3.2) would have collided with it. -->
+  <div id="hudTop">
+    <div id="taskPanel">
+      <div id="taskMeterRow">
+        <div id="taskMeter"><div id="taskMeterFill"></div></div>
+        <div id="taskCount">0 / 24 tasks</div>
+      </div>
+      <div id="taskStrip"></div>
+    </div>
+    <div id="boostRow"></div>
+  </div>
 
   <div id="leftRail">
     <button class="sqBtn" id="shopBtn"><span class="sqIcon">🛒</span><span class="sqLabel">SHOP</span></button>
@@ -264,9 +423,16 @@ const FARM = {
 const MEADOW = {
   unlockCost: 6000, woolBase: 60, woolTime: 25,
   costs:{ sheep:{base:1800, mult:2.0, max:5}, wool:{base:3000, mult:2.6, max:4},
-          shear:{base:3500, mult:2.4, max:3} }
+          shear:{base:3500, mult:2.4, max:3}, auto:{base:4200, mult:2.2, max:3} }
 };
-const OFFLINE_RATE=0.45, OFFLINE_CAP_H=6, TASKS_PER_LEVEL=4;
+const OFFLINE_RATE=0.45, OFFLINE_CAP_H=6;
+// How many task chips are VISIBLE at once. This is the window, and it is NOT
+// the size of a level — decision D1 separates the two. A level is one whole
+// authored set (TASK_SETS, below); the window is only how much of that set the
+// player can see at a time. The old per-level task constant fused the two
+// concepts and has been removed: it fired a level every 4 completions
+// regardless of how big the authored set actually was.
+const TASK_WINDOW=3;
 const CROP_NAMES={carrot:'Carrot',tomato:'Tomato',sunflower:'Sunflower'};
 
 const TASK_CHAIN = [
@@ -295,16 +461,39 @@ const TASK_CHAIN = [
   { id:'t23', icon:'🐑', title:'Full flock — 5 sheep',       type:'state',   check:s=>s.sheep.length>=5, rMin:3.0 },
   { id:'t24', icon:'🧺', title:'Harvest 90 crops',           type:'counter', ev:'harvest', n:90,  rMin:3.0 }
 ];
-function generatedTask(i){
-  const k=i-TASK_CHAIN.length;
-  const cycle=['coins','harvest','wool','ad'][k%4];
-  const scale=Math.pow(2.1, Math.floor(k/4)+1);
-  if(cycle==='coins')  return {id:'g'+k, icon:'💰', title:'Collect '+fmt(Math.round(40000*scale))+' coins', type:'counter', ev:'coins', n:Math.round(40000*scale), rMin:3.5};
-  if(cycle==='harvest')return {id:'g'+k, icon:'🧺', title:'Harvest '+Math.round(70*Math.sqrt(scale))+' crops', type:'counter', ev:'harvest', n:Math.round(70*Math.sqrt(scale)), rMin:3.0};
-  if(cycle==='wool')   return {id:'g'+k, icon:'🧶', title:'Collect '+Math.round(25*Math.sqrt(scale))+' wool', type:'counter', ev:'wool', n:Math.round(25*Math.sqrt(scale)), rMin:3.0};
-  return {id:'g'+k, icon:'📺', title:'Watch 3 ad rewards', type:'counter', ev:'ad', n:3, rMin:3.5};
+// A level is one authored SET of tasks (decision D1). Level 1's set is the
+// 24-task chain above, used UNCHANGED (decision D2) — that is the whole reason
+// this option was chosen over re-authoring: the chain is already economy-tuned
+// to ~21 minutes of active play, so no retuning is needed and verify-flow must
+// still report 24/24.
+//
+// Level 2 is deliberately absent (decision D3): the farm is full after 6 plots
+// and 5 sheep, so there is nothing yet for a second set to ask for. The level
+// *system* is built now; the content comes later alongside the chickens/bakery
+// site. Adding a Level 2 is adding one more array here — nothing else changes.
+const TASK_SETS=[ TASK_CHAIN ];
+
+// The set the player is currently working through, or null once they have
+// finished every authored set.
+function currentSet(){ return TASK_SETS[S.setIdx] || null; }
+function setsRemaining(){ return S.setIdx < TASK_SETS.length; }
+// The indices a set opens with: as many as the window allows, or the whole set
+// if it is smaller than the window. Used at new-game and at every level-up so
+// the two cannot drift apart.
+function openWindow(setIdx){
+  const set=TASK_SETS[setIdx];
+  return Array.from({length: set?Math.min(TASK_WINDOW,set.length):0},(_,k)=>k);
 }
-function taskAt(i){ return i<TASK_CHAIN.length ? TASK_CHAIN[i] : generatedTask(i); }
+
+// Index -> task, scoped to the CURRENT set. Returns null past the end of the
+// set instead of inventing filler.
+//
+// There used to be a generator here that invented unlimited scaled-up tasks
+// past t24 ("Collect 84,000 coins"). It is deleted, not just disconnected
+// (conflict C4): under an authored-set model it desyncs from the level
+// boundary, and leaving it in the file invites a future refill from reaching
+// for it. What the player sees at that edge is handled in renderTasks().
+function taskAt(i){ const set=currentSet(); return set && i<set.length ? set[i] : null; }
 
 const AD_DEFS = {
   rush:  { icon:'💰', name:'Coin Rush',  cd:5*60, cap:10, desc:()=>fmt(rushAmount()) },
@@ -334,12 +523,25 @@ const ZONES=[
 ];
 function newState(){
   return {
-    coins:0, farmLevel:1, tasksDone:0, taskIdx:[0,1,2], taskProg:{},
+    coins:0, farmLevel:1, tasksDone:0, taskProg:{},
+    // The opening window is min(TASK_WINDOW, size of Level 1's set) — derived,
+    // not the literal [0,1,2], so a future set smaller than the window cannot
+    // park an index in saved state that points past the end of it.
+    taskIdx:openWindow(0),
+    // setIdx: which authored set (level) the player is inside, 0-based.
+    // setDone: completions INSIDE that set — this is what fires the level,
+    // not the lifetime tasksDone, which keeps counting across levels.
+    // setNext: the next index in the set that has never been shown. Moves
+    // forward only; see the note in claimTask() for why it is not derived.
+    setIdx:0, setDone:0, setNext:openWindow(0).length,
     plots:Array.from({length:FARM.maxPlots},()=>({progress:0,ready:false})),
     unlockedPlots:FARM.startPlots, cropTier:0,
     upgLevels:{plot:0,speed:0,seeds:0,auto:0},
-    meadowOpen:false, sheep:[], meadowLv:{wool:0,shear:0},
+    meadowOpen:false, sheep:[], meadowLv:{wool:0,shear:0,auto:0},
     autoTimer:0, boostUntil:0, superBotUntil:0,
+    // Wool has its OWN collector and its own timers, deliberately separate from
+    // the crop bot: each manual action gets its own automation (owner, 2026-07-31).
+    woolTimer:0, woolBotUntil:0,
     adLast:{}, adCount:{day:dayKey()}, zone:0,
     pos:{x:SPAWN.x, z:SPAWN.z},
     lastSeen:now()
@@ -357,19 +559,37 @@ function eps(){return farmEPS()+(S.meadowOpen?meadowEPS():0);}
 function rushAmount(){return Math.max(20,Math.round(eps()*8*60/10)*10);}
 function boostOn(){return now()<S.boostUntil;}
 function superBotOn(){return now()<S.superBotUntil;}
+// The wool collector is independent of the crop bot. Buying the Harvest Bot must
+// not silently automate the meadow, and vice versa.
+function woolBotOn(){return now()<S.woolBotUntil;}
+function woolBotLevel(){return woolBotOn()?99:S.meadowLv.auto;}
 function upgCost(key){const c=FARM.costs[key];return Math.round(c.base*Math.pow(c.mult,S.upgLevels[key]));}
 function meadowCost(key){const c=MEADOW.costs[key];const lv=key==='sheep'?S.sheep.length:S.meadowLv[key];return Math.round(c.base*Math.pow(c.mult,lv));}
 
 /* ---------- task engine ---------- */
-function activeTasks(){return S.taskIdx.map(i=>({i,def:taskAt(i)}));}
+// Only slots that still resolve to a real task in the current set. Past the
+// end of a set the window shrinks rather than padding from the next one, so
+// this can legitimately return fewer than TASK_WINDOW entries (BACKLOG 2.4).
+// `slot` is the position in S.taskIdx, carried through explicitly. claimTask()
+// writes and splices S.taskIdx by slot, so it must NOT be the position in this
+// filtered result — those coincide only while the filter drops nothing, which
+// is an accident of the current guards rather than something enforced.
+function activeTasks(){return S.taskIdx.map((i,slot)=>({i,slot,def:taskAt(i)})).filter(e=>e.def);}
+// Collects WHICH task ids moved, not just whether any did. That list is the
+// whole point of BACKLOG 3.6: the owner wants the "this one just ticked" nudge
+// kept, but scoped to the task that actually ticked —
+//   "every coin I make it refreshes the whole list of tasks, which is not
+//    reasonable. It should do that action, for its task only."
+// so the ids are passed through to renderTasks() as the pulse set instead of
+// triggering a blanket repaint of all three chips.
 function taskEvent(ev,n=1){
-  let touched=false;
+  const touched=[];
   activeTasks().forEach(({def})=>{
     if(def.type==='counter'&&def.ev===ev&&!taskComplete(def)){
-      S.taskProg[def.id]=(S.taskProg[def.id]||0)+n; touched=true;
+      S.taskProg[def.id]=(S.taskProg[def.id]||0)+n; touched.push(def.id);
     }
   });
-  if(touched) renderTasks();
+  if(touched.length) renderTasks(touched);
 }
 function taskProgress(def){ return def.type==='counter'?Math.min(def.n,S.taskProg[def.id]||0):(def.check(S)?1:0); }
 function taskTarget(def){ return def.type==='counter'?def.n:1; }
@@ -377,8 +597,11 @@ function taskComplete(def){ return taskProgress(def)>=taskTarget(def); }
 function taskReward(def){ return Math.max(15, Math.round(eps()*def.rMin*20/5)*5); }
 
 function claimTask(slot,mult){
-  const {def}=activeTasks()[slot];
-  if(!taskComplete(def)) return;
+  // slot indexes S.taskIdx directly — see the note on activeTasks().
+  const def=taskAt(S.taskIdx[slot]);
+  if(!def||!taskComplete(def)) return;
+  // Snapshot the chip while it is still on screen and still gold (BACKLOG 3.7).
+  const chip=$('#taskStrip .task[data-task-id="'+def.id+'"]');
   const reward=taskReward(def)*mult;
   S.coins+=reward;
   taskEvent('coins',reward);
@@ -387,13 +610,45 @@ function claimTask(slot,mult){
   bump($('#coinPill'));
   farmerCheer();
   chirp(523,'triangle',0.1); setTimeout(()=>chirp(784,'triangle',0.1),120);
-  S.taskIdx[slot]=Math.max(...S.taskIdx)+1;
-  S.tasksDone++;
-  if(S.tasksDone%TASKS_PER_LEVEL===0) farmLevelUp();
+  // Refill the claimed slot from the CURRENT set only. If the set has nothing
+  // left to reveal, the slot is removed instead of being padded from the next
+  // set: the player sees 2 chips, then 1, then the level ticks (BACKLOG 2.3
+  // and 2.4). Padding here is what would leak next-level content early.
+  // setNext is an explicit forward-only cursor, NOT max(taskIdx)+1. That older
+  // trick worked only because the window never lost a slot: the highest index
+  // ever revealed was always still on screen. Once 2.4 lets a slot be removed,
+  // the visible max falls back and the next refill re-reveals a task the
+  // player already finished. (Caught by verify-flow: t24 completed twice.)
+  // The window is a QUEUE, left to right: oldest on the left, newest on the
+  // right (owner's decision, 2026-07-31). The claimed task is REMOVED, which
+  // shifts everything on its right one place left, and the newly revealed task
+  // is appended on the right.
+  //
+  // It used to write the new task straight back into the claimed slot. That
+  // kept the array length steady but scrambled the order — a brand-new task
+  // could appear in the middle with older ones either side, so the strip read
+  // as three independent stacks each dealing a fresh card rather than one
+  // ordered queue. Same tasks, same pacing; only their position changes.
+  const set=currentSet();
+  S.taskIdx.splice(slot,1);
+  if(set && S.setNext<set.length) S.taskIdx.push(S.setNext++);
+
+  S.tasksDone++;   // lifetime, across every level — drives nothing, shown as stats
+  S.setDone++;     // inside the current set — THIS is what ends the level
+  if(set && S.setDone>=set.length) farmLevelUp();
+  taskExitFx(chip,def,reward);   // green + check, then rise and fade (3.7)
   renderAll(); save();
 }
+// Fires when the whole authored set is complete — not on a task count.
 function farmLevelUp(){
   S.farmLevel++;
+  // Move to the next authored set and re-open the window on it. When no set
+  // follows, S.taskIdx stays empty and the strip shows the "more coming soon"
+  // state rather than generated filler (BACKLOG 2.5 / conflict C4).
+  S.setIdx++;
+  S.setDone=0;
+  S.taskIdx = openWindow(S.setIdx);
+  S.setNext = S.taskIdx.length;
   fireworks(); flash();
   chirp(659,'triangle',0.1); setTimeout(()=>chirp(880,'triangle',0.11),140); setTimeout(()=>chirp(1046,'triangle',0.12),280);
   const bonus=Math.max(50,Math.round(eps()*120/10)*10);
@@ -446,7 +701,15 @@ function tryAdReward(key,btn){
       popText(innerWidth/2,innerHeight/2,'+'+fmt(amt)+' 💰','#f5a623');bump($('#coinPill'));}
     if(key==='boost'){S.boostUntil=now()+5*60*1000;}
     if(key==='bot'){S.superBotUntil=now()+3*60*1000;}
-    if(key==='wool'){S.sheep.forEach(sh=>{sh.progress=1;sh.ready=true;});}
+    if(key==='wool'){
+      // Used to only set ready=true, so it made every sheep FULL of wool and
+      // then left it there: taskEvent('wool') never fired and "Collect N wool"
+      // never moved even though the ad was watched. It says "All wool", so it
+      // now actually banks it, then keeps collecting for 3 minutes.
+      S.sheep.forEach(sh=>{sh.progress=1;sh.ready=true;});
+      for(let i=0;i<S.sheep.length;i++) collectWool(i);
+      S.woolBotUntil=now()+3*60*1000;
+    }
     chirp(523,'triangle',0.1);setTimeout(()=>chirp(784,'triangle',0.1),120);
     renderAll();save();
   });
@@ -468,6 +731,33 @@ function load(){
       S.plots=Array.from({length:FARM.maxPlots},()=>({progress:0,ready:false}));
     if(!S.pos||typeof S.pos.x!=='number') S.pos={x:SPAWN.x,z:SPAWN.z};
     if(S.adCount.day!==dayKey())S.adCount={day:dayKey()};
+    // Saves written before the Wool Bot existed carry meadowLv:{wool,shear},
+    // and Object.assign copies that object wholesale over the new default —
+    // leaving meadowLv.auto undefined, which makes meadowCost('auto') NaN.
+    if(typeof S.meadowLv.auto!=='number') S.meadowLv.auto=0;
+    if(typeof S.woolTimer!=='number') S.woolTimer=0;
+    if(typeof S.woolBotUntil!=='number') S.woolBotUntil=0;
+
+    // --- migrate saves written before levels were authored sets (BACKLOG 2.1)
+    // Those saves have a lifetime `tasksDone` but no `setDone`, and their
+    // taskIdx are indices into one continuous chain. With a single authored
+    // set the numbers coincide, so the migration is mostly bookkeeping — but
+    // a player who ran past t24 into the old generated filler can hold indices
+    // beyond the set, which would now resolve to null and blank the strip.
+    if(typeof raw.setIdx!=='number'){
+      const set=TASK_SETS[0];
+      S.setIdx=0;
+      S.setDone=Math.min(raw.tasksDone||0, set.length);
+      S.taskIdx=S.taskIdx.filter(i=>i<set.length);
+      // Everything up to the highest index they had on screen has been
+      // revealed, so the cursor resumes one past it.
+      S.setNext=Math.min(set.length, S.taskIdx.length?Math.max(...S.taskIdx)+1:TASK_WINDOW);
+      if(S.setDone>=set.length){
+        // They had already finished every authored task. Put them at the end
+        // of the level system rather than back into filler.
+        S.setIdx=TASK_SETS.length; S.setDone=0; S.taskIdx=[]; S.setNext=0;
+      }
+    }
     return true;
   }
   return false;
@@ -992,8 +1282,32 @@ function buildWorld(){
   bulb.position.set(-1.5,3.4,13); scene.add(bulb);
 
   /* signs */
+  // The MEADOW label sits lower AND further down the approach path than it did.
+  //
+  // The task card grew from ~50px to ~95px in Phase 3 and swallowed the MEADOW
+  // sign completely at spawn — the one cue telling a new player where the
+  // meadow is was invisible. Measured rather than guessed: the card spans
+  // y=46..141 and the sign projected to y=100, dead centre of it.
+  //
+  // Lowering the sprite alone does almost nothing, because at that distance a
+  // world-height change is only a few screen pixels (4.4 -> 2.7 moved it from
+  // y=100 to y=127, still behind the card). What actually moves a distant
+  // label down the screen is bringing it TOWARDS the camera, so the signs now
+  // stand ~7 units out from their zone edge, on the approach, where they read
+  // as "this way to..." gateway markers.
+  //
+  // SIGN_OUT is 10, not 7. At 7 the sign cleared the card in a plain 393x852
+  // viewport but its top edge still tucked under the card on a notched phone,
+  // where safe-area-inset pushes the whole HUD ~55px further down. Checked on
+  // the simulator, not assumed.
+  // Only the MEADOW sign moves. It is the one that sits directly north of the
+  // spawn point, so it is the one the card swallowed. The farm and build signs
+  // are approached from the side and stay exactly where they were — shifting
+  // them south by the same amount would push them out of their own zone into
+  // open grass, which fixes nothing and moves art nobody complained about.
+  const SIGN_Y=2.7, SIGN_OUT=10;
   const s0=makeSign('🌾 FARM'); s0.position.set(ZONES[0].cx+13,4.4,ZONES[0].cz+13); scene.add(s0);
-  const s1=makeSign('🐑 MEADOW'); s1.position.set(ZONES[1].cx,4.4,ZONES[1].cz+13); scene.add(s1);
+  const s1=makeSign('🐑 MEADOW'); s1.position.set(ZONES[1].cx,SIGN_Y,ZONES[1].cz+13+SIGN_OUT); scene.add(s1);
   const s2=makeSign('🏗️ SOON'); s2.position.set(b.cx,4.4,b.cz+11); scene.add(s2);
 
   /* scatter: trees, pines, rocks, flowers (seeded, avoiding zones+paths) */
@@ -1358,15 +1672,20 @@ function harvest(i){
 }
 function collectWool(i){
   const sh=S.sheep[i];
+  // Called from a tap, from the Wool Bot in tick(), and from the Insta-Wool ad.
+  // Only the tap path could ever assume a ready sheep with a built mesh.
+  if(!sh||!sh.ready) return;
   sh.ready=false;sh.progress=0;
   const val=woolValue();
   S.coins+=val;
   taskEvent('coins',val);taskEvent('wool',1);
   const m=sheep3D[i];
-  const sp=worldToScreen(m.position.x,2.4,m.position.z);
-  popText(sp.x,sp.y,'+'+fmt(val)+' 🧶','#fff');
-  flyCoin(sp.x,sp.y);sparkBurst(sp.x,sp.y);
-  chirp(720+Math.random()*100);
+  if(m){
+    const sp=worldToScreen(m.position.x,2.4,m.position.z);
+    popText(sp.x,sp.y,'+'+fmt(val)+' 🧶','#fff');
+    flyCoin(sp.x,sp.y);sparkBurst(sp.x,sp.y);
+    chirp(720+Math.random()*100);
+  }
   sync3DMeadow();renderHeader();
 }
 
@@ -1410,7 +1729,14 @@ const MEADOW_SHOP=[
    sub:()=>`Faster wool · Lv ${S.meadowLv.shear}`,
    maxed:()=>S.meadowLv.shear>=MEADOW.costs.shear.max,cost:()=>meadowCost('shear'),
    locked:()=>!S.meadowOpen,
-   buy:()=>{S.meadowLv.shear++;}}
+   buy:()=>{S.meadowLv.shear++;}},
+  // The meadow's own bot. The farm has the Harvest Bot; the meadow has this.
+  // Neither automates the other.
+  {key:'auto',name:'Wool Bot',icon:'🤖',
+   sub:()=>S.meadowLv.auto===0?'Collects wool for you!':`Lv ${S.meadowLv.auto}`,
+   maxed:()=>S.meadowLv.auto>=MEADOW.costs.auto.max,cost:()=>meadowCost('auto'),
+   locked:()=>!S.meadowOpen,
+   buy:()=>{S.meadowLv.auto++;}}
 ];
 function renderShop(){
   $('#shopTitle').textContent=S.zone===1?'🐑 MEADOW UPGRADES':(S.zone===2?'🏗️ COMING SOON':'🌾 FARM UPGRADES');
@@ -1467,29 +1793,175 @@ function buildRewardsDOM(){
 function renderHeader(){
   $('#coinCount').textContent=fmt(S.coins);
   $('#lvlText').textContent=`Farm Lv ${S.farmLevel}`;
-  const into=S.tasksDone%TASKS_PER_LEVEL;
-  $('#lvlMiniFill').style.width=(into/TASKS_PER_LEVEL*100)+'%';
+  // Progress through the current SET, not through a fixed task count. Past the
+  // last authored set the level is finished, so the bar reads full.
+  const set=currentSet();
+  $('#taskMeterFill').style.width=(set ? Math.min(1,S.setDone/set.length)*100 : 100)+'%';
+  // BACKLOG 3.4 — say the progress in words next to the bar, not just as a
+  // length. Counts the SET, matching the bar beside it.
+  $('#taskCount').textContent = set ? `${Math.min(S.setDone,set.length)} / ${set.length} tasks`
+                                    : 'all tasks done';
   updateShopButtons();
 }
-function renderTasks(){
-  const strip=$('#taskStrip');strip.innerHTML='';
-  activeTasks().forEach(({def},slot)=>{
-    const prog=taskProgress(def),target=taskTarget(def),done=taskComplete(def);
-    const d=document.createElement('div');
-    d.className='task'+(done?' done':'');
+// BACKLOG 3.7 — send a completed chip off properly instead of blinking it out
+// of existence. Takes a copy of the chip while it is still on screen in its
+// finished (gold) state, pins the copy over its own footprint, and lets it fly
+// off on its own. The real node is then free to be reused or removed by the
+// normal reconcile, so the exit never interferes with the keyed diff.
+//
+// Must be called BEFORE the state changes — once S.taskIdx is spliced the chip
+// is gone and there is nothing left to copy, which is exactly the position the
+// old innerHTML='' render left us in.
+function taskExitFx(chip,def,reward){
+  if(!chip) return;
+  const r=chip.getBoundingClientRect();
+  // Shallow clone: the copy is REBUILT as a completion card rather than
+  // carrying over the claim buttons, which are meaningless once claimed.
+  const g=chip.cloneNode(false);
+  g.className='task done taskGhost';
+  g.removeAttribute('data-task-id');       // never let the reconcile match it
+  g.style.left=r.left+'px'; g.style.top=r.top+'px';
+  g.style.width=r.width+'px'; g.style.height=r.height+'px';
+  g.innerHTML=`<div class="tTitle"><span>${def.icon}</span><span>${def.title}</span></div>
+    <div class="tDone"><span class="tCheck">✓</span><span class="tGain">+${fmt(reward)}</span></div>`;
+  document.body.appendChild(g);
+  setTimeout(()=>g.remove(),1250);         // outlives the 1.15s animation
+}
+
+// Nudge one chip to say "this one just ticked". The guard is load-bearing, not
+// an optimisation: it makes it IMPOSSIBLE to restart an animation that is still
+// playing, which is the failure mode CLAUDE.md rule 7 exists to prevent. A
+// counter can tick faster than 0.28s (claim rewards land in one lump); without
+// this guard the pulse would never settle and we would have rebuilt the
+// "dancing" bug in a new costume.
+function pulseChip(d){
+  if(d.classList.contains('pulse')) return;
+  d.classList.add('pulse');
+  clearTimeout(d._pulseT);
+  // Deliberately LONGER than the 0.7s sweep. Matching them exactly means the
+  // next tick retriggers the instant the last sweep ends, so the bar shimmers
+  // continuously and reads as a loading spinner rather than as "this ticked".
+  // The extra ~0.45s of stillness is what makes it a pulse instead of a churn.
+  d._pulseT=setTimeout(()=>d.classList.remove('pulse'),1150);
+}
+
+// Build or refresh ONE chip in place. Everything that can change without the
+// chip's identity changing — bar width, counter text, complete/claimable —
+// is written onto the existing node. Nothing here recreates it.
+function syncTaskChip(d,def,i){
+  const prog=taskProgress(def),target=taskTarget(def),done=taskComplete(def);
+  if(d.dataset.taskId!==def.id){
+    d.dataset.taskId=def.id;
+    d.dataset.shape='';
     d.innerHTML=`<div class="tTitle"><span>${def.icon}</span><span>${def.title}</span></div>
-      ${done
-        ?`<div class="claimRow">
+      <div class="tBody"></div>`;
+  }
+  // The task's index in the set. Kept on the node so the claim buttons can
+  // resolve their slot at click time — see below.
+  d.dataset.setIdx=i;
+  d.classList.toggle('done',done);
+  const body=d.querySelector('.tBody');
+  const shape=done?'claim':'bar';
+  if(d.dataset.shape!==shape){
+    d.dataset.shape=shape;
+    if(done){
+      d.dataset.reward=String(taskReward(def));
+      body.innerHTML=`<div class="claimRow">
             <button class="claimBtn" data-m="1">+${fmt(taskReward(def))}</button>
             <button class="claimBtn x2" data-m="2">📺×2</button>
-          </div>`
-        :`<div class="tBar"><div class="tFill" style="width:${prog/target*100}%"></div></div>
-          <div class="tNums">${def.type==='counter'?fmt(prog)+' / '+fmt(target):'…'}</div>`}`;
-    if(done){
-      d.querySelector('[data-m="1"]').addEventListener('pointerdown',()=>claimTask(slot,1));
-      d.querySelector('[data-m="2"]').addEventListener('pointerdown',()=>AdManager.show(()=>{registerAdWatch();claimTask(slot,2);}));
+          </div>`;
+      // slot is RESOLVED AT CLICK TIME, never captured. Chips now outlive a
+      // render, so a slot baked in at build time goes stale the moment another
+      // task is claimed and S.taskIdx is spliced — the game would then claim
+      // one task and remove a different one. Looking it up keeps `slot`
+      // meaning exactly "position in S.taskIdx", which is the Phase 2
+      // invariant. A missing task gives -1, and claimTask() no-ops on it.
+      const slotOf=()=>S.taskIdx.indexOf(Number(d.dataset.setIdx));
+      body.querySelector('[data-m="1"]').addEventListener('pointerdown',()=>claimTask(slotOf(),1));
+      body.querySelector('[data-m="2"]').addEventListener('pointerdown',()=>AdManager.show(()=>{registerAdWatch();claimTask(slotOf(),2);}));
+    }else{
+      body.innerHTML=`<div class="tBar"><div class="tFill" style="width:${prog/target*100}%"></div></div>
+          <div class="tNums">${def.type==='counter'?fmt(prog)+' / '+fmt(target):'…'}</div>`;
     }
-    strip.appendChild(d);
+  }else if(done){
+    // The reward scales with eps(), so it can drift while a finished chip waits
+    // to be claimed.
+    const r=String(taskReward(def));
+    if(d.dataset.reward!==r){ d.dataset.reward=r; body.querySelector('[data-m="1"]').textContent='+'+fmt(taskReward(def)); }
+  }else{
+    body.querySelector('.tFill').style.width=(prog/target*100)+'%';
+    const nums=def.type==='counter'?fmt(prog)+' / '+fmt(target):'…';
+    const el=body.querySelector('.tNums');
+    if(el.textContent!==nums) el.textContent=nums;
+  }
+}
+
+// Reconciles the strip against the visible window, KEYED BY TASK ID. Nodes are
+// created and destroyed only when the set of visible task ids actually changes.
+//
+// This replaced `strip.innerHTML=''` + rebuild-all (BACKLOG 3.6). That version
+// destroyed and recreated all three chips on every counter tick, so each one
+// restarted its 0.35s `taskIn` entry animation roughly 1.6 times a second and
+// never finished it — the whole HUD shimmered while the Harvest Bot ran.
+// Measured before and after with `npm run churn`; `npm run shots` is blind to
+// it, because a chip re-animating every 0.6s is byte-identical in a still.
+//
+// `pulse` is the list of task ids whose counter just moved, from taskEvent().
+// Only those chips are nudged; the rest are not touched at all.
+function renderTasks(pulse){
+  const strip=$('#taskStrip');
+  // BACKLOG 2.5 / conflict C4: past the last authored set there is nothing
+  // left to show. The old generator filled this gap with unlimited scaled-up
+  // filler ("Collect 84,000 coins"), which desyncs from an authored-set model
+  // and reads as endless busywork. Level 2 is deliberately deferred (D3), so
+  // say so plainly instead — an empty strip would look like a broken game.
+  if(!setsRemaining()){
+    if(!strip.querySelector('.task.soon')){
+      strip.innerHTML=`<div class="task soon"><div class="tTitle">
+      <span>🌱</span><span>New tasks are on the way — your farm keeps earning</span></div></div>`;
+    }
+    return;
+  }
+  const want=activeTasks();
+  const wanted=new Set(want.map(e=>e.def.id));
+  // FLIP. Claiming a task removes it and shifts everything on its right one
+  // place left; without this they teleport. Positions are measured only when
+  // the visible ids actually change, so the common case — a counter ticking —
+  // reads no geometry at all.
+  const before=strip.children.length ? Array.from(strip.children).map(el=>el.dataset.taskId).join() : '';
+  const moved = before !== want.map(e=>e.def.id).join();
+  const prevLeft=new Map();
+  if(moved) Array.from(strip.children).forEach(el=>{
+    if(el.dataset.taskId) prevLeft.set(el.dataset.taskId, el.getBoundingClientRect().left);
+  });
+  // Drop chips whose task left the window — and the "coming soon" chip, which
+  // carries no task id, if a set has become available again.
+  Array.from(strip.children).forEach(el=>{ if(!wanted.has(el.dataset.taskId)) el.remove(); });
+  want.forEach(({def,i},k)=>{
+    let d=strip.querySelector('.task[data-task-id="'+def.id+'"]');
+    if(!d){ d=document.createElement('div'); d.className='task'; }   // genuinely new -> taskIn plays, once
+    syncTaskChip(d,def,i);
+    if(strip.children[k]!==d) strip.insertBefore(d,strip.children[k]||null);
+  });
+  // Second half of the FLIP: put each survivor back where it was, then let a
+  // transition carry it to where it now belongs. This is a one-shot write on a
+  // layout change, NOT a per-frame write, so it is not the rule 7 trap — the
+  // transition is exactly the mechanism meant to own this property here.
+  if(moved) prevLeft.forEach((oldLeft,id)=>{
+    const el=strip.querySelector('.task[data-task-id="'+id+'"]');
+    if(!el) return;
+    const dx=oldLeft-el.getBoundingClientRect().left;
+    if(Math.abs(dx)<1) return;
+    el.style.transition='none';
+    el.style.transform='translateX('+dx+'px)';
+    requestAnimationFrame(()=>{
+      el.style.transition='transform .45s cubic-bezier(.3,.9,.25,1)';
+      el.style.transform='';
+    });
+  });
+  if(pulse) pulse.forEach(id=>{
+    const d=strip.querySelector('.task[data-task-id="'+id+'"]');
+    if(d) pulseChip(d);
   });
 }
 function renderRewards(){
@@ -1510,6 +1982,8 @@ function renderRewards(){
     br.insertAdjacentHTML('beforeend',`<span class="chip boost">☀️ 2× ${Math.floor(s2/60)}:${String(s2%60).padStart(2,'0')}</span>`);}
   if(superBotOn()){const s2=Math.ceil((S.superBotUntil-now())/1000);
     br.insertAdjacentHTML('beforeend',`<span class="chip bot">🤖 ${Math.floor(s2/60)}:${String(s2%60).padStart(2,'0')}</span>`);}
+  if(woolBotOn()){const s2=Math.ceil((S.woolBotUntil-now())/1000);
+    br.insertAdjacentHTML('beforeend',`<span class="chip wool">🧶 ${Math.floor(s2/60)}:${String(s2%60).padStart(2,'0')}</span>`);}
 }
 function renderAll(){renderHeader();renderTasks();renderRewards();sync3DFarm();sync3DMeadow();}
 function fmt(n){
@@ -1631,6 +2105,22 @@ function tick(nowMs){
       S.sheep.forEach(sh=>{
         if(!sh.ready){sh.progress+=dt/wt;if(sh.progress>=1){sh.progress=1;sh.ready=true;}changed=true;}
       });
+      // Wool auto-collection. Its own upgrade, its own timer, its own cadence —
+      // deliberately NOT tied to the crop bot.
+      //
+      // This is the bug the owner hit: nothing in the game ever collected wool
+      // except tapping a sheep, while verify-flow.js credits wool continuously
+      // as a rate. So the sim reported 24/24 while a real save sat at 0/10 with
+      // five loaded sheep. The game now does what the model always assumed.
+      const wLvl=woolBotLevel();
+      if(wLvl>0){
+        S.woolTimer-=dt;
+        if(S.woolTimer<=0){
+          S.woolTimer=woolBotOn()?0.6:Math.max(1.0,4.5-wLvl);
+          const si=S.sheep.findIndex(sh=>sh.ready);
+          if(si>=0) collectWool(si);
+        }
+      }
     }
     updateCharacter(dt,elapsed);
     updateCamera(dt);
@@ -1643,19 +2133,47 @@ function tick(nowMs){
   requestAnimationFrame(tick);
 }
 
+/* ---------- WebGL capability ----------
+   Without this the game fails in the worst possible way: THREE.WebGLRenderer
+   throws, boot dies partway, and the player is left with whatever HUD had
+   already drawn sitting on an empty blue screen. It reads as a broken game
+   rather than an unsupported browser. This happened on a real machine.
+   Probe first, and still wrap the renderer — a driver can fail even after a
+   probe succeeds. */
+function webglSupported(){
+  try{
+    const c=document.createElement('canvas');
+    return !!(window.WebGLRenderingContext &&
+      (c.getContext('webgl')||c.getContext('experimental-webgl')));
+  }catch(e){ return false; }
+}
+function showNoWebGL(){
+  const el=$('#noWebGL');
+  if(el) el.classList.add('show');
+}
+
 /* ---------- boot ---------- */
 const hasSave=load();
 if(!hasSave){ S=newState(); }
-initThree();
-buildWorld();
-initJoystick();
-buildRewardsDOM();
-renderShop();
-renderAll();
-if(hasSave){ offlineWelcome(); farmerSay('Welcome back! 👋',2000); }
-else { save(); farmerSay('Let’s grow! 🌱',2400); }
-if(S.meadowOpen) document.querySelector('[data-dot="2"]').classList.remove('lock');
-requestAnimationFrame(tick);
+
+let booted=false;
+if(webglSupported()){
+  try{ initThree(); booted=true; }
+  catch(e){ booted=false; }
+}
+if(!booted){
+  showNoWebGL();
+}else{
+  buildWorld();
+  initJoystick();
+  buildRewardsDOM();
+  renderShop();
+  renderAll();
+  if(hasSave){ offlineWelcome(); farmerSay('Welcome back! 👋',2000); }
+  else { save(); farmerSay('Let’s grow! 🌱',2400); }
+  if(S.meadowOpen) document.querySelector('[data-dot="2"]').classList.remove('lock');
+  requestAnimationFrame(tick);
+}
 </script>
 </body>
 </html>
