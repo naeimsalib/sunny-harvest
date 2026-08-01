@@ -299,6 +299,75 @@ html,body{margin:0;height:100%;overflow:hidden;
   opacity:0;transition:opacity .3s;transform:translate(-50%,-100%);pointer-events:none;}
 #farmerBubble.show{opacity:1;}
 
+/* ---------- world-anchored action buttons (BACKLOG 4.1) ----------
+   Two elements per anchor, and the split is the whole point of the design.
+
+   .wAnchor is the SHELL. It carries the projected screen position, rewritten
+   from tick() whenever the character or camera moves, and it must NEVER carry
+   a transition or an animation — that is CLAUDE.md rule 7, the "character
+   looks like it's dancing" bug, which is caused precisely by animating a
+   property per frame that is also being interpolated by CSS.
+
+   .wBtn is the BUTTON. It owns every cosmetic transform: the press squash,
+   the affordable pop, and the 4.3 shake. Because it is a different element
+   from the one being projected, a shake can never fight the projection write
+   and the two can never produce a compounding jitter.
+
+   Layer 15 sits above the canvas but below the task card (20) and the rails
+   (21), so a world button can never paint over the HUD. */
+#worldAnchors{position:fixed;inset:0;z-index:15;pointer-events:none;}
+.wAnchor{position:fixed;left:0;top:0;will-change:transform;}
+.wBtn{pointer-events:auto;display:flex;align-items:center;gap:5px;
+  border:0;font-family:inherit;cursor:pointer;
+  padding:5px 10px 6px;border-radius:13px;
+  transition:background .18s,box-shadow .18s,color .18s,opacity .18s,filter .18s;
+  /* BACKLOG 4.2 — the DEFAULT state is "can't afford this yet": still fully
+     legible, because the player needs to read the price to know what to save
+     for, but visibly inert. Desaturated rather than merely faded, so it does
+     not read as "still loading". */
+  background:linear-gradient(#fdfcfa,#ebe7e0);color:#9a8e7e;
+  box-shadow:0 3px 0 rgba(0,0,0,.13),0 0 0 2px rgba(255,255,255,.85) inset;}
+.wBtn .wIcon{font-size:14px;line-height:1;}
+.wBtn .wLabel{font-size:11px;font-weight:800;letter-spacing:.2px;white-space:nowrap;}
+.wBtn .wCost{display:flex;align-items:center;gap:3px;font-size:11px;font-weight:800;
+  white-space:nowrap;}
+/* BACKLOG 4.4 — the up-arrow marks a repeatable UPGRADE as opposed to a one-off
+   purchase. It is what tells the player "this one gets better again later", so
+   it must survive the unaffordable state (it describes the item, not whether
+   you can buy it right now) while still desaturating with everything else. */
+.wUp{display:none;font-size:9px;line-height:1;color:var(--green2);
+  background:rgba(92,191,79,.16);border-radius:5px;padding:2px 3px;}
+.wBtn.up .wUp{display:inline-block;}
+.wBtn.can .wUp{color:#2f7a25;background:rgba(255,255,255,.55);}
+/* Unaffordable: drain the colour from the coin too, or a bright gold coin on a
+   grey button reads as though the button were active. */
+.wBtn:not(.can) .wIcon{filter:grayscale(.7);opacity:.75;}
+.wBtn:not(.can) .wCost svg{filter:grayscale(.85);opacity:.8;}
+/* Affordable — the only state that looks pressable. */
+.wBtn.can{background:linear-gradient(var(--sun),var(--sun2));color:var(--text);
+  box-shadow:0 3px 0 #c98b12,0 0 0 2px rgba(255,255,255,.85) inset;}
+
+/* BACKLOG 4.6 — "too far to press", which MUST NOT be confusable with 4.2's
+   "can't afford". They are different problems with different solutions: one
+   says save up, the other says walk over.
+
+   So they use different visual channels rather than two shades of grey.
+   Unaffordable stays fully opaque, full size, with its full 3D shadow — it is
+   present, just not yours yet. Too-far fades and loses its shadow, so it
+   recedes into the scene. An affordable-but-distant button therefore keeps its
+   gold and simply looks far away, which reads as "you can have this, go to
+   it" — exactly the message D5 wants.
+
+   The shadow is what does most of the work: everything else in this game sits
+   on a 3px offset shadow, so removing it is a strong depth cue.
+
+   pointer-events:none is not cosmetic. Eight always-visible buttons overlap on
+   screen sometimes, and without this the one painted on top silently eats taps
+   meant for the one beneath it. Measured: the farm's Better Seeds button was
+   intercepting clicks aimed at Buy Plot. Only what you are standing beside can
+   take a tap. */
+.wBtn.far{opacity:.5;box-shadow:0 1px 0 rgba(0,0,0,.10);pointer-events:none;}
+
 /* ---------- fx / overlays ---------- */
 .flyCoin{position:fixed;width:26px;height:26px;pointer-events:none;z-index:60;transition:all .6s cubic-bezier(.5,-0.2,.6,1);}
 .popText{position:fixed;pointer-events:none;z-index:59;font-weight:800;color:#fff;
@@ -344,6 +413,10 @@ html,body{margin:0;height:100%;overflow:hidden;
     <div id="joyRing"></div><div id="joyNub"></div>
     <div id="farmerBubble"></div>
   </div>
+  <!-- World-anchored action buttons (BACKLOG 4.1). Deliberately a SIBLING of
+       #sceneWrap, not a child: #sceneWrap owns the joystick pointerdown, and a
+       button living inside it would start a joystick drag on every press. -->
+  <div id="worldAnchors"></div>
 
   <div id="topBar">
     <div class="pill" id="lvlPill">
@@ -355,7 +428,7 @@ html,body{margin:0;height:100%;overflow:hidden;
       <span id="coinCount">0</span>
     </div>
   </div>
-  <div id="verTag">v4.5</div>
+  <div id="verTag">v4.6</div>
   <div id="noWebGL">
     <div class="emoji">🌾</div>
     <h1>This browser can't show the farm</h1>
@@ -1454,6 +1527,331 @@ function worldToScreen(x,y,z){
 }
 
 /* =====================================================================
+   WORLD ANCHORS — action buttons pinned to 3D positions (BACKLOG 4.1)
+
+   The core of Phase 4, and the foundation P5 (shop teardown) and P6 (camera
+   pan) both stand on. A world anchor is a DOM button that behaves as though
+   it were standing in the 3D scene: it tracks a world coordinate, holds that
+   spot while the character walks and the camera follows, and is pressed
+   directly instead of through the raycaster.
+
+   Why DOM rather than a sprite in the scene: these are BUTTONS. Text baked
+   into a canvas texture is soft at phone DPI, hit-testing it means extending
+   tapWorld()'s raycast, and every state change (affordable, too far, maxed)
+   means re-rendering that texture. A DOM node gets crisp text, a real touch
+   target and CSS state transitions for free. The one thing it does not get
+   for free is its position — which is the entire job of this system.
+   ===================================================================== */
+const anchors=[];
+const _aV=new THREE.Vector3();
+// How far off-screen an anchor may drift before it stops being drawn.
+// Generous on purpose: a button belonging to something at the very edge of
+// the view should not flicker in and out as the character walks.
+const ANCHOR_MARGIN=64;
+// One button-height plus a gap. Anchors sharing a world position stack upward
+// by multiples of this.
+const ANCHOR_STACK=34;
+/* How close the character must be to press a world button (BACKLOG 4.6 / D5).
+   In world units: crop beds sit 9.5 apart and a zone is ~34 wide, so 16 lets
+   the player stand anywhere sensible beside a thing and reach it, without
+   letting one zone's buttons be pressed from inside another. */
+const ANCHOR_REACH=16;
+/* The lowest screen y an anchor may be drawn at, i.e. just under the task card.
+   The card owns z-index 20 and anchors sit at 15, so without this an anchor
+   belonging to something at the back of a zone slides underneath the HUD and
+   is simply gone — which breaks D5's "always visible" in the least obvious way
+   possible. This is the same collision that swallowed the MEADOW signpost in
+   Phase 3; that was fixed by moving the sign, which does not generalise.
+
+   Only Y is clamped, never X: horizontal position is what tells the player
+   WHICH object a button belongs to, so it must stay honest. Vertical position
+   is free, so the button slides down and stays readable.
+
+   Measured from the card rather than hard-coded, because the card's height
+   changes with the number of chips — and re-measured on resize, since rule 18
+   says nothing may assume one viewport. */
+let anchorTopLimit=0, anchorLeftLimit=0, anchorRightLimit=0;
+function measureAnchorBounds(){
+  const hud=$('#hudTop');
+  anchorTopLimit=hud?hud.getBoundingClientRect().bottom+6:0;
+  // The edge rails are z-index 21 and anchors are 15, so a button projecting
+  // near either edge disappears behind them. Measured from the rails
+  // themselves rather than hard-coded, because their size follows the
+  // viewport (rule 18).
+  const lr=$('#leftRail'), rr=$('#rightRail');
+  anchorLeftLimit=(lr?lr.getBoundingClientRect().right:0)+6;
+  anchorRightLimit=(rr?rr.getBoundingClientRect().left:innerWidth)-6;
+}
+addEventListener('resize',measureAnchorBounds);
+
+function addAnchor(spec){
+  const shell=document.createElement('div');
+  shell.className='wAnchor';
+  // Identifies which purchasable this button belongs to. Used by the tests to
+  // target one anchor precisely, and by 5.1 to prove every purchasable has a
+  // world anchor before the shop is deleted.
+  shell.dataset.key=spec.key;
+  const btn=document.createElement('button');
+  btn.className='wBtn';
+  btn.innerHTML='<span class="wIcon"></span><span class="wLabel"></span>'+
+                '<span class="wUp">▲</span><span class="wCost"></span>';
+  if(spec.up) btn.classList.add('up');
+  shell.appendChild(btn);
+  $('#worldAnchors').appendChild(shell);
+  const a=Object.assign({shell,btn,sx:NaN,sy:NaN,shown:null},spec);
+  // stopPropagation, not preventDefault: the press must not reach #sceneWrap,
+  // whose pointerdown starts a joystick drag. Without this, every press on a
+  // world button also grabs the joystick underneath it and the farmer lurches.
+  btn.addEventListener('pointerdown',e=>{ e.stopPropagation(); pressAnchor(a); });
+  anchors.push(a);
+  return a;
+}
+
+/* Project every anchor to screen space. Called once per frame from tick(). */
+function updateAnchors(){
+  if(!anchors.length||!camera) return;
+  // innerWidth/innerHeight, NOT getBoundingClientRect(): #sceneWrap is inset:0
+  // inside a full-viewport #app, so the numbers are identical — but a rect read
+  // per anchor per frame forces a layout flush per anchor per frame, which is
+  // exactly the per-frame cost the work order warns about.
+  const w=innerWidth, h=innerHeight;
+  const fp=FarmerRig&&FarmerRig.root?FarmerRig.root.position:null;
+  for(const a of anchors){
+    // A retired anchor (every plot bought) stays hidden and costs nothing.
+    if(a.gone){ continue; }
+    const p=a.pos();
+    // BACKLOG 4.6 — proximity. Squared distance, so this costs no sqrt per
+    // anchor per frame, and toggled only on change so a walk across the map
+    // does not thrash classList.
+    if(fp){
+      const dx=p.x-fp.x, dz=p.z-fp.z;
+      const near=(dx*dx+dz*dz)<=ANCHOR_REACH*ANCHOR_REACH;
+      // sx=NaN forces one reposition: crossing the range boundary switches the
+      // clamp on or off, which can change where the button belongs even though
+      // the projected pixel did not move.
+      if(near!==a.near){ a.near=near; a.btn.classList.toggle('far',!near); a.sx=NaN; }
+    }
+    _aV.set(p.x,p.y,p.z).project(camera);
+    // project() divides through by w, so a point at or behind the camera plane
+    // comes back MIRRORED into the viewport rather than outside it. It has to
+    // be culled on z; culling on x/y alone leaves ghost buttons sliding the
+    // wrong way across the screen when the character walks past the camera.
+    const behind=_aV.z>1;
+    const sx=Math.round((_aV.x*0.5+0.5)*w);
+    const sy=Math.round((-_aV.y*0.5+0.5)*h);
+    const vis=!behind && sx>-ANCHOR_MARGIN && sx<w+ANCHOR_MARGIN
+                      && sy>-ANCHOR_MARGIN && sy<h+ANCHOR_MARGIN;
+    if(vis!==a.shown){ a.shell.style.display=vis?'block':'none'; a.shown=vis; }
+    if(!vis) continue;
+    // Write ONLY on change. updateCamera() lerps toward its goal, so the camera
+    // never exactly arrives — the raw projection keeps moving in the fourth
+    // decimal place forever. Rounding to whole pixels is what makes a standing
+    // still character produce ZERO style writes instead of one per anchor per
+    // frame. Measured with `npm run churn`; without the rounding it never
+    // settles.
+    if(sx!==a.sx||sy!==a.sy){
+      a.sx=sx; a.sy=sy;
+      // `stack` lifts an anchor by whole button-heights so several buttons can
+      // share one world position (the farm's three upgrades all belong to the
+      // farm, not to a spot in it) without landing on top of each other.
+      // The floor keeps the topmost one clear of the task card — see
+      // anchorTopLimit. It has to account for the whole GROUP, not just this
+      // button: flooring each one independently pushes them all onto the same
+      // line and the stack collapses into an unreadable pile. Measured that
+      // happening, which is why stackMax exists.
+      const st=a.stack||0;
+      let lift=sy-st*ANCHOR_STACK, px=sx;
+      // Clamp ONLY what the player can actually reach.
+      //
+      // The clamp exists to rescue a button you are standing beside that
+      // happens to project behind the task card or under an edge rail. A
+      // distant thing does not need rescuing — it genuinely is somewhere else,
+      // and letting it project naturally (and slide off screen) is honest.
+      //
+      // Clamping everything is also what made unrelated groups collide: with
+      // the character south of the whole farm, the plot button and the barn's
+      // upgrade stack both hit the same floor and printed on top of each
+      // other. Photographed, which is the only way that was ever going to be
+      // noticed.
+      if(a.near!==false){
+        const floor=anchorTopLimit+ANCHOR_STACK*(1+(a.stackMax||st)-st);
+        lift=Math.max(floor,lift);
+        const hw=a.halfW||0;
+        const lo=anchorLeftLimit+hw, hi=anchorRightLimit-hw;
+        px=Math.min(Math.max(sx,lo),Math.max(lo,hi));
+      }
+      a.shell.style.transform='translate3d('+px+'px,'+lift+'px,0) translate(-50%,-100%)';
+    }
+  }
+}
+
+/* BACKLOG 4.3 — pressing something you cannot afford.
+
+   The rule-7 hazard here is NOT the shake itself. `shake()` animates
+   `transform`, and .wBtn's transition list is deliberately background /
+   box-shadow / color / opacity / filter with no `transform` in it, so nothing
+   is interpolating against the animation. The projected transform lives on the
+   shell, a different element entirely (4.1).
+
+   The real hazard is re-entrancy. el.animate() does not replace a running
+   animation, it STACKS another one — so a player jabbing an unaffordable
+   button gets overlapping shakes that never resolve into a single clear "no".
+   That is the same failure shape pulseChip() already guards against. */
+function pressAnchor(a){
+  // Proximity is enforced here as well as in CSS. pointer-events:none is the
+  // thing that actually stops the tap, but a rule can be overridden and this
+  // cannot — and it keeps "can you press this" answerable in one place rather
+  // than living only in a stylesheet.
+  if(a.near===false){ farmerSay('Too far — walk over!'); return; }
+  const cost=a.cost();
+  if(S.coins<cost){
+    if(!a._shakeT){
+      shake(a.btn);
+      // Slightly longer than shake()'s own 220ms, so the guard clears only
+      // once the animation has genuinely finished.
+      a._shakeT=setTimeout(()=>{ a._shakeT=0; },260);
+    }
+    farmerSay('Not enough coins!');
+    return;
+  }
+  S.coins-=cost; a.act();
+  chirp(440); setTimeout(()=>chirp(560),90);
+  renderAll(); save();
+}
+
+/* Label, cost and affordability. State-driven rather than per-frame, but it
+   runs from renderHeader() — which fires on every coin earned — so it is
+   change-guarded exactly like the projection loop. Without the guard, the
+   Harvest Bot earning several coins a second would rewrite every world
+   button's innerHTML several times a second: BACKLOG 3.6's bug in a new hat. */
+function refreshAnchors(){
+  if(!anchors.length||!S) return;
+  for(const a of anchors){
+    const gone=!!(a.hidden&&a.hidden());
+    if(gone!==a.gone){
+      a.gone=gone;
+      // Hand visibility back to the projection loop rather than guessing here:
+      // clearing `shown` forces it to re-decide on the next frame.
+      if(gone){ a.shell.style.display='none'; a.shown=false; } else a.shown=null;
+    }
+    if(gone) continue;
+    const label=a.label(), cost=a.cost(), can=S.coins>=cost;
+    if(a.icon!==a._icon){ a._icon=a.icon; a.btn.querySelector('.wIcon').textContent=a.icon; }
+    if(label!==a._label){ a._label=label; a.btn.querySelector('.wLabel').textContent=label; }
+    if(cost!==a._cost){ a._cost=cost; a.btn.querySelector('.wCost').innerHTML=coinSVG(13)+fmt(cost); }
+    if(can!==a._can){ a._can=can; a.btn.classList.toggle('can',can); }
+    // Cache the half-width for the edge-rail clamp. Read here, where the text
+    // has just changed, rather than in the per-frame loop — offsetWidth forces
+    // a layout flush, which is the one thing updateAnchors must never do.
+    if(a._measured!==a._label+'|'+a._cost){
+      a._measured=a._label+'|'+a._cost;
+      a.halfW=a.btn.offsetWidth/2;
+      a.sx=NaN;                 // force one reposition with the new width
+    }
+  }
+}
+
+/* The one coin glyph the world buttons share. The header and the shop each
+   inline their own copy at different sizes; this is the third and last. */
+function coinSVG(px){
+  return '<svg viewBox="0 0 24 24" width="'+px+'" height="'+px+'">'+
+    '<circle cx="12" cy="12" r="10" fill="#e08c12"/>'+
+    '<circle cx="12" cy="12" r="7.6" fill="#ffd44d"/></svg>';
+}
+
+/* Find a shop item by key. Anchors deliberately REUSE the shop's own item
+   definitions rather than restating cost/maxed/buy, so there is exactly one
+   description of what each purchase costs and does. That is also what makes
+   BACKLOG 5.2 cheap: deleting the shop deletes the PANEL, while every purchase
+   path keeps working because it never lived in the panel to begin with. */
+function shopItem(list,key){ return list.find(it=>it.key===key); }
+
+/* BACKLOG 4.2 — the locked plots.
+
+   Only the NEXT bed to unlock carries a button, and that is forced by the data
+   model rather than being a style choice. `S.unlockedPlots` is a COUNT: plot i
+   is unlocked iff i < S.unlockedPlots, and buying always increments. So a Buy
+   button on the far bed would unlock the NEAR bed — the player would press one
+   thing and watch a different thing change. One button, on the bed that is
+   actually next, is the only honest reading of this economy.
+
+   It moves as beds are bought because pos() is evaluated per frame, and it
+   disappears at 6/6 via hidden(). */
+/* Build an anchor straight from a shop item, so name, cost, buy and the
+   maxed/locked/hidden rules all have exactly one definition. `up:true` marks a
+   repeatable UPGRADE rather than a one-off purchase (BACKLOG 4.4). */
+function itemAnchor(list,key,opts){
+  const get=()=>shopItem(list,key);
+  // The farm and the meadow BOTH have an item keyed 'auto' (Harvest Bot and
+  // Wool Bot — separate automations by the owner's design rule, and neither
+  // may automate the other). So the anchor id must be qualified, or the two
+  // would collide and data-key would address the wrong button.
+  return addAnchor(Object.assign({
+    key:(opts&&opts.group?opts.group+'.':'')+key,
+    label:()=>get().name,
+    cost:()=>get().cost(),
+    act:()=>get().buy(),
+    // One hidden() folds all three of the shop's own visibility rules together:
+    // `hidden` (already bought outright), `locked` (the meadow is not open yet)
+    // and `maxed` (nothing left to buy). A maxed upgrade retires rather than
+    // sitting in the world as a dead "MAX" label.
+    hidden:()=>{ const it=get();
+      return !!((it.hidden&&it.hidden())||(it.locked&&it.locked())||it.maxed()); }
+  },opts));
+}
+
+function buildAnchors(){
+  /* --- 4.2: the next locked bed --- */
+  addAnchor({
+    key:'plot',
+    icon:'🟫',
+    pos:()=>{ const p=plotWorldPos(Math.min(S.unlockedPlots,FARM.maxPlots-1)); return {x:p.x,y:3.2,z:p.z}; },
+    hidden:()=>S.unlockedPlots>=FARM.maxPlots,
+    label:()=>'Buy Plot',
+    cost:()=>shopItem(FARM_SHOP,'plot').cost(),
+    act:()=>shopItem(FARM_SHOP,'plot').buy()
+  });
+
+  /* --- 4.5: the farm's earnings upgrades ---
+     Anchored at the barn and silo rather than on a crop bed, because they are
+     farm-wide: Faster Growth speeds every plot, not the one you are standing
+     on. Stacked, since all three belong to the same place. */
+  const farmHub={x:ZONES[0].cx+2, z:ZONES[0].cz-19};
+  itemAnchor(FARM_SHOP,'speed',{icon:'⏱️',up:true,group:'farm',stack:0,
+    pos:()=>({x:farmHub.x,y:5.0,z:farmHub.z})});
+  itemAnchor(FARM_SHOP,'seeds',{icon:'🌱',up:true,group:'farm',stack:1,
+    pos:()=>({x:farmHub.x,y:5.0,z:farmHub.z})});
+  itemAnchor(FARM_SHOP,'auto',{icon:'🤖',up:true,group:'farm',stack:2,
+    pos:()=>({x:farmHub.x,y:5.0,z:farmHub.z})});
+
+  /* --- 4.4: the meadow ---
+     "Unlock Meadow" and "Buy Sheep" share stack 0 deliberately: the unlock
+     hides itself the moment it is bought (the shop item's own hidden()), so
+     the two can never be on screen together. */
+  const meadowHub={x:ZONES[1].cx, z:ZONES[1].cz};
+  itemAnchor(MEADOW_SHOP,'open', {icon:'🔓',group:'meadow',stack:0,
+    pos:()=>({x:meadowHub.x,y:5.0,z:meadowHub.z})});
+  itemAnchor(MEADOW_SHOP,'sheep',{icon:'🐑',group:'meadow',stack:0,
+    pos:()=>({x:meadowHub.x,y:5.0,z:meadowHub.z})});
+  itemAnchor(MEADOW_SHOP,'wool', {icon:'🧶',up:true,group:'meadow',stack:1,
+    pos:()=>({x:meadowHub.x,y:5.0,z:meadowHub.z})});
+  itemAnchor(MEADOW_SHOP,'shear',{icon:'✂️',up:true,group:'meadow',stack:2,
+    pos:()=>({x:meadowHub.x,y:5.0,z:meadowHub.z})});
+  itemAnchor(MEADOW_SHOP,'auto', {icon:'🤖',up:true,group:'meadow',stack:3,
+    pos:()=>({x:meadowHub.x,y:5.0,z:meadowHub.z})});
+
+  // Resolve how tall each stack group is, so the card-collision floor can keep
+  // a whole group below the card instead of flattening it. Hidden members still
+  // count, which keeps the layout stable as items are bought and retire.
+  const gmax={};
+  anchors.forEach(a=>{ const g=a.group||a.key; gmax[g]=Math.max(gmax[g]||0,a.stack||0); });
+  anchors.forEach(a=>{ a.stackMax=gmax[a.group||a.key]; });
+
+  measureAnchorBounds();
+  refreshAnchors();
+}
+
+/* =====================================================================
    CONTROLLER — joystick + 3D turn + procedural run
    ===================================================================== */
 const WALK_SPEED=13;
@@ -1802,6 +2200,11 @@ function renderHeader(){
   $('#taskCount').textContent = set ? `${Math.min(S.setDone,set.length)} / ${set.length} tasks`
                                     : 'all tasks done';
   updateShopButtons();
+  // Affordability lives on the coin balance, so world buttons refresh wherever
+  // the balance is repainted — not only on the much rarer renderAll(). Both
+  // this and updateShopButtons() are change-guarded internally, so a coin a
+  // second does not mean a DOM write a second.
+  refreshAnchors();
 }
 // BACKLOG 3.7 — send a completed chip off properly instead of blinking it out
 // of existence. Takes a copy of the chip while it is still on screen in its
@@ -1963,6 +2366,10 @@ function renderTasks(pulse){
     const d=strip.querySelector('.task[data-task-id="'+id+'"]');
     if(d) pulseChip(d);
   });
+  // The card's height changes with the number of chips, and world anchors are
+  // kept clear of its bottom edge. Re-measure here — where the height actually
+  // changes — rather than per frame.
+  measureAnchorBounds();
 }
 function renderRewards(){
   document.querySelectorAll('.rw').forEach(b=>{
@@ -1985,7 +2392,7 @@ function renderRewards(){
   if(woolBotOn()){const s2=Math.ceil((S.woolBotUntil-now())/1000);
     br.insertAdjacentHTML('beforeend',`<span class="chip wool">🧶 ${Math.floor(s2/60)}:${String(s2%60).padStart(2,'0')}</span>`);}
 }
-function renderAll(){renderHeader();renderTasks();renderRewards();sync3DFarm();sync3DMeadow();}
+function renderAll(){renderHeader();renderTasks();renderRewards();sync3DFarm();sync3DMeadow();refreshAnchors();}
 function fmt(n){
   if(n>=1e6)return (n/1e6).toFixed(1)+'M';
   if(n>=1e4)return (n/1e3).toFixed(1)+'K';
@@ -2126,6 +2533,10 @@ function tick(nowMs){
     updateCamera(dt);
     updateWorldLife(dt,elapsed);
     updateHUDWorld();
+    // After updateCamera(), so anchors project against the camera the player
+    // is about to see rather than lagging it by one frame — a button trailing
+    // its object is the exact artifact `npm run shots` is blind to.
+    updateAnchors();
     uiTimer+=dt;
     if(changed||uiTimer>0.5){uiTimer=0;sync3DFarm();sync3DMeadow();renderRewards();}
     renderer.render(scene,camera);
@@ -2167,6 +2578,7 @@ if(!booted){
   buildWorld();
   initJoystick();
   buildRewardsDOM();
+  buildAnchors();
   renderShop();
   renderAll();
   if(hasSave){ offlineWelcome(); farmerSay('Welcome back! 👋',2000); }
