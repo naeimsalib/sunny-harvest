@@ -35,7 +35,12 @@ html,body{margin:0;height:100%;overflow:hidden;
   font-family:'Baloo 2','Comic Sans MS','Segoe UI',system-ui,sans-serif;
   background:#79c8f0;color:var(--text);}
 #app{position:relative;width:100%;height:100vh;height:100dvh;overflow:hidden;}
-#sceneWrap{position:absolute;inset:0;}
+/* touch-action:none on the WRAPPER as well as the canvas (4C.4). The canvas has
+   carried it since v4, but the pointer listeners live on #sceneWrap, and a
+   two-finger gesture that begins on any non-canvas child of the wrapper would
+   otherwise be claimed by the browser's own pinch handling before a single
+   pointermove reached the game. */
+#sceneWrap{position:absolute;inset:0;touch-action:none;}
 #threeCanvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;}
 
 /* ---------- top bar: level pill + coin pill ---------- */
@@ -467,7 +472,7 @@ html,body{margin:0;height:100%;overflow:hidden;
       <span id="coinCount">0</span>
     </div>
   </div>
-  <div id="verTag">v4.9</div>
+  <div id="verTag">v5.0</div>
   <div id="noWebGL">
     <div class="emoji">🌾</div>
     <h1>This browser can't show the farm</h1>
@@ -633,6 +638,36 @@ const ZONES=[
   {name:'meadow', cx:  2, cz:-24, hx:17, hz:13},
   {name:'build',  cx: 48, cz:14, hx:13, hz:11}
 ];
+
+/* ---------- camera distance (BACKLOG 4C) ----------
+   The v4.1-v4.9 camera sat 37 units above the look-at point and 33 behind it.
+   Those two numbers live here as the UNIT of distance rather than as literals
+   at the call site, because zoom multiplies BOTH by the same factor. That is
+   what makes zoom a pure dolly: 37:33 IS the tangent of the elevation angle,
+   so as long as neither is ever scaled without the other, rule 6 ("the camera
+   never rotates") holds by construction instead of by care.
+   `tools/measure-frame.js` prints the elevation at every zoom level for
+   exactly this reason — if a future edit breaks the pairing, that column stops
+   being constant and the table says so out loud.
+
+   ZOOM_DEF is 4C.1: the default framing is pulled back from v4.9, which is
+   what "zoom out to show more of the map" asked for. ZOOM_MIN is deliberately
+   1.00 — pinching all the way IN returns the player to the exact v4.9 framing,
+   so the closest the camera can get is a place we have already shipped and
+   they have already accepted. */
+const CAM_LOOK_Y=1.0, CAM_UP=37, CAM_BACK=33;
+const ZOOM_DEF=1.30, ZOOM_MIN=1.00, ZOOM_MAX=1.40;
+// A total guard, not merely a range clamp: this is the function 4C.5 runs over
+// a LOADED value, and a save can carry anything — an older build's number, a
+// hand-edited localStorage entry, or a NaN from a pinch divided by a
+// zero-length finger gap. Anything non-finite becomes the default rather than
+// poisoning camGoal, because a NaN in camera.position makes the entire scene
+// vanish with nothing in the console to say why.
+function clampZoom(z){
+  return (typeof z==='number'&&isFinite(z))
+    ? Math.min(ZOOM_MAX,Math.max(ZOOM_MIN,z))
+    : ZOOM_DEF;
+}
 function newState(){
   return {
     coins:0, farmLevel:1, tasksDone:0, taskProg:{},
@@ -656,6 +691,11 @@ function newState(){
     woolTimer:0, woolBotUntil:0,
     adLast:{}, adCount:{day:dayKey()}, zone:0,
     pos:{x:SPAWN.x, z:SPAWN.z},
+    // 4C.5 — camera distance lives beside position because it is the same kind
+    // of thing: where the player left the view, not what they own. It is
+    // deliberately NOT under a settings object, since nothing else in the game
+    // is a preference and one would have to be invented to hold it.
+    zoom:ZOOM_DEF,
     lastSeen:now()
   };
 }
@@ -858,6 +898,13 @@ function load(){
     if(!Array.isArray(S.plots)||S.plots.length!==FARM.maxPlots)
       S.plots=Array.from({length:FARM.maxPlots},()=>({progress:0,ready:false}));
     if(!S.pos||typeof S.pos.x!=='number') S.pos={x:SPAWN.x,z:SPAWN.z};
+    // 4C.5 — re-clamp on EVERY load, not just when the field is missing. Every
+    // save written before 4C has no zoom at all and must take the new default;
+    // and if a later build narrows ZOOM_MIN/ZOOM_MAX, a save holding a value
+    // that used to be legal would otherwise keep a framing the current build
+    // will not let anyone pinch back to. clampZoom() handles both, because it
+    // maps undefined and NaN to the default rather than to a boundary.
+    S.zoom=clampZoom(S.zoom);
     if(S.adCount.day!==dayKey())S.adCount={day:dayKey()};
     // Saves written before the Wool Bot existed carry meadowLv:{wool,shear},
     // and Object.assign copies that object wholesale over the new default —
@@ -1480,13 +1527,28 @@ function buildWorld(){
     const f=makeFlower(i); f.position.set(x,0,z); f.rotation.y=rnd()*6.3; scene.add(f);
   }
 
-  /* clouds */
+  /* clouds — 4C.3.
+     "For the floating cloud, it is too big and too distracting, can you make it
+     a lot smaller." Scaled on the GROUP rather than by editing the six sphere
+     numbers, so the reduction is one auditable factor and the silhouette keeps
+     its proportions — three overlapping spheres of DIFFERENT sizes is what
+     makes the shape read as a cloud rather than as a blob, and hand-editing
+     radii is how that gets lost.
+
+     0.45 is linear, so the area is about a fifth. Measured at the new camera
+     distance a cloud spans ~3.6 world units, roughly two sheep wide, which was
+     the check that mattered: 4C.1 already shrinks them along with everything
+     else, and shrinking them again on top risked landing on white specks
+     instead of small clouds. They are unchanged in number, height, speed and
+     wrap behaviour — only their size was the complaint. */
+  const CLOUD_SCALE=0.45;
   for(let i=0;i<5;i++){
     const c=new THREE.Group();
     for(const p of [[0,0,0,2.1],[1.9,0.35,0.25,1.5],[-1.8,0.25,-0.15,1.4]]){
       const m=new THREE.Mesh(new THREE.SphereGeometry(p[3],9,7),new THREE.MeshLambertMaterial({color:0xffffff}));
       m.position.set(p[0],p[1],p[2]); c.add(m);
     }
+    c.scale.setScalar(CLOUD_SCALE);
     c.position.set((Math.random()-0.5)*130, 24+Math.random()*7, (Math.random()-0.5)*80);
     c.userData.speed=0.7+Math.random()*0.8;
     scene.add(c); clouds3D.push(c);
@@ -1523,7 +1585,14 @@ function buildWorld(){
 
   FarmerRig=makeFarmer();
   FarmerRig.root.position.set(S.pos.x,0,S.pos.z);
-  FarmerRig.root.scale.setScalar(1.55);   // reads clearly at the wide camera distance
+  // 4C.2 — 1.55 x 0.75 = 1.16. The owner's words were "the character itself is
+  // pretty large compared to everything around it", which is a RELATIVE
+  // complaint: it is answered by this line alone, because every sheep, crop and
+  // building keeps its size. 4C.1's pull-back answers a different complaint and
+  // shrinks everything equally. The two compound on the ABSOLUTE size, and that
+  // is measured rather than eyeballed — see docs/ART-REFERENCE.md and
+  // `npm run measure`.
+  FarmerRig.root.scale.setScalar(1.16);
   scene.add(FarmerRig.root);
   S.sheep.forEach(()=>spawnSheep3D());
 }
@@ -2163,18 +2232,105 @@ function buildAnchors(){
 const WALK_SPEED=13;
 const joy={active:false,baseX:0,baseY:0,vx:0,vy:0,mag:0,startT:0,moved:false};
 const JOY_R=48;
+
+/* ---------- 4C.4: pinch to zoom ----------
+   "Add a way for users to zoom in and zoom out, slightly, not all the way,
+   with limitation on how close and how far they can, and do zoom in/out like
+   normal with two fingers."
+
+   THE PROBLEM THIS SOLVES IS NOT THE PINCH. Computing a scale from two finger
+   positions is four lines. The problem is that #sceneWrap already owns
+   pointerdown and that starts a JOYSTICK DRAG, so a two-finger pinch lands on
+   a control that is already walking the farmer. There are three distinct ways
+   that goes wrong, and all three had to be handled separately:
+
+     1. By the time the SECOND finger lands, the first has already set
+        joy.active and may have crossed the 12px threshold. So the second
+        pointerdown must actively CANCEL the joystick, not merely decline to
+        start another one.
+
+     2. Lifting one finger at the end of a pinch leaves the other still down.
+        Without a lock, the next pointermove is a perfectly valid joystick drag
+        from a finger the player is only using to zoom — so the farmer bolts
+        across the map exactly as the pinch finishes. `locked` holds until
+        EVERY finger is up.
+
+     3. A quick pinch satisfies the existing tap test (`!joy.moved` and under
+        260ms), so pointerup would raycast into the world and harvest whatever
+        happened to be under a finger. `locked` suppresses that too.
+
+   `pointers` is the source of truth for how many fingers are down. Reading
+   e.isPrimary or a touches list instead would be shorter and wrong: pointer
+   events do not guarantee the primary pointer is the one still down. */
+const pinch={active:false,startDist:0,startZoom:1,locked:false};
+const pointers=new Map();
+// A FLOOR on the finger gap, applied to both ends of the ratio — not a
+// threshold that refuses to start. Below ~24px the gap is too small for the
+// ratio to mean anything: dividing by it turns a 2px tremor into a huge jump,
+// and at zero it produces the NaN clampZoom() exists to absorb. Flooring keeps
+// the gesture alive throughout while making the arithmetic safe, where an
+// ignore-below-threshold rule would leave a player who happens to start with
+// their fingers close together pinching at a camera that does not respond.
+const PINCH_MIN_DIST=24;
+
 function initJoystick(){
   const wrap=$('#sceneWrap'), ring=$('#joyRing'), nub=$('#joyNub');
+  const hideJoy=()=>{
+    joy.active=false; joy.moved=false; joy.mag=0;
+    ring.style.display='none'; nub.style.display='none';
+  };
+  const twoPointers=()=>{
+    const it=pointers.values();
+    return [it.next().value, it.next().value];
+  };
+  const gap=()=>{
+    const [a,b]=twoPointers();
+    const d=(a&&b) ? Math.hypot(a.x-b.x, a.y-b.y) : 0;
+    return Math.max(d, PINCH_MIN_DIST);
+  };
+
   wrap.addEventListener('pointerdown',e=>{
     const sheet=$('#shopSheet');
     if(sheet.classList.contains('open')){ sheet.classList.remove('open'); return; }
+    // Self-heal. `locked` is cleared when the LAST finger lifts, so a pointerup
+    // that never arrives — capture lost, the OS swallowing it, the app
+    // backgrounded mid-gesture — would wedge the controls permanently. An
+    // empty map means no finger is down whatever we last believed, so the next
+    // touch recovers instead of the player having to restart the game.
+    if(pointers.size===0){ pinch.active=false; pinch.locked=false; }
+    pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+
+    if(pointers.size>=2){
+      // Trap 1. Stand the joystick down — it is already running from finger one.
+      hideJoy();
+      pinch.active=true; pinch.startDist=gap(); pinch.startZoom=getZoom();
+      pinch.locked=true;   // no joystick and no tap until every finger is up
+      return;
+    }
+    if(pinch.locked) return;
+
     const r=wrap.getBoundingClientRect();
     joy.active=true; joy.moved=false; joy.startT=performance.now();
     joy.baseX=e.clientX-r.left; joy.baseY=e.clientY-r.top;
     joy.vx=0;joy.vy=0;joy.mag=0;
-    wrap.setPointerCapture&&wrap.setPointerCapture(e.pointerId);
+    // setPointerCapture genuinely throws — InvalidPointerId if the pointer was
+    // released between the event being queued and this handler running, which
+    // Safari does under load. It is the last statement in the handler today, so
+    // a throw currently costs nothing; the try is here so that stays true if
+    // anything is ever added below it.
+    try{ wrap.setPointerCapture&&wrap.setPointerCapture(e.pointerId); }catch(err){}
   });
+
   wrap.addEventListener('pointermove',e=>{
+    if(pointers.has(e.pointerId)) pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+
+    if(pinch.active&&pointers.size>=2){
+      // Fingers apart -> zoom IN -> camera CLOSER -> a SMALLER distance factor.
+      // Hence startDist/d and not d/startDist: this one line decides whether
+      // the gesture feels like every other app or backwards.
+      setZoom(pinch.startZoom*(pinch.startDist/gap()));
+      return;
+    }
     if(!joy.active)return;
     const r=wrap.getBoundingClientRect();
     const dx=(e.clientX-r.left)-joy.baseX, dy=(e.clientY-r.top)-joy.baseY;
@@ -2191,14 +2347,28 @@ function initJoystick(){
       nub.style.top=(joy.baseY+joy.vy*capped)+'px';
     }
   });
+
   const end=e=>{
-    const wasTap = joy.active && !joy.moved && (performance.now()-joy.startT)<260;
+    if(e&&e.pointerId!==undefined) pointers.delete(e.pointerId);
+    else pointers.clear();
+
+    if(pinch.active&&pointers.size<2){
+      pinch.active=false;
+      save();   // 4C.5 — the zoom is part of "where the player left the view"
+    }
+    // Traps 2 and 3. The lock outlives the pinch itself and clears only when
+    // the LAST finger leaves, so the finger still resting on the glass can
+    // neither start a walk nor register as a tap.
+    if(pointers.size>0){ hideJoy(); return; }
+    const wasTap = !pinch.locked && joy.active && !joy.moved &&
+                   (performance.now()-joy.startT)<260;
+    pinch.locked=false;
     joy.active=false; joy.mag=0;
     ring.style.display='none'; nub.style.display='none';
     if(wasTap && e && e.clientX!==undefined) tapWorld(e);
   };
   wrap.addEventListener('pointerup',end);
-  wrap.addEventListener('pointercancel',()=>end(null));
+  wrap.addEventListener('pointercancel',end);
 }
 function tapWorld(e){
   const wrap=$('#sceneWrap').getBoundingClientRect();
@@ -2267,13 +2437,42 @@ function updateCharacter(dt,t){
   });
 }
 
-/* camera: fixed 48° angle, far enough to see the whole farm area */
+/* camera: fixed 48.3° angle, far enough to see the whole farm area.
+   The distance is CAM_UP/CAM_BACK scaled by S.zoom — see the note beside those
+   constants for why the pair must always be scaled together (rule 6). */
 const camGoal=new THREE.Vector3();
+function getZoom(){ return S?S.zoom:ZOOM_DEF; }
+function setZoom(z){ if(S) S.zoom=clampZoom(z); }
+// One place computes the goal, so updateCamera() and snapCamera() cannot drift
+// apart — and if they did, every measurement taken with snapCamera() would be
+// of a camera the player never actually sees.
+function camGoalFor(p){
+  const k=getZoom();
+  return camGoal.set(p.x, CAM_LOOK_Y+CAM_UP*k, p.z+CAM_BACK*k);
+}
 function updateCamera(dt){
   const p=FarmerRig.root.position;
-  camGoal.set(p.x, 38, p.z+33);
-  camera.position.lerp(camGoal, Math.min(1,dt*5.5));
-  camera.lookAt(p.x, 1.0, p.z);
+  camGoalFor(p);
+  // The 5.5/s lerp is what makes the camera trail the farmer pleasantly. It is
+  // the wrong response to a PINCH: the player's fingers are the input device,
+  // and a camera that arrives 300ms after them feels like rubber rather than
+  // like every other app they own. So while a pinch is live the goal is
+  // followed exactly, and the lerp resumes the moment they let go.
+  camera.position.lerp(camGoal, pinch.active ? 1 : Math.min(1,dt*5.5));
+  camera.lookAt(p.x, CAM_LOOK_Y, p.z);
+}
+// Put the camera exactly where it is heading, with no lerp. Two callers, and
+// neither is gameplay: the instruments (`tools/measure-frame.js`) need a camera
+// whose position does not depend on how many frames happened to elapse, and
+// boot needs the first painted frame to be the framing the player keeps rather
+// than the tail of a fly-in from wherever a default camera starts.
+function snapCamera(){
+  if(!FarmerRig||!camera) return;
+  const p=FarmerRig.root.position;
+  camGoalFor(p);
+  camera.position.copy(camGoal);
+  camera.lookAt(p.x, CAM_LOOK_Y, p.z);
+  camera.updateMatrixWorld(true);
 }
 function currentZoneIdx(){
   const p=FarmerRig.root.position;
@@ -2892,6 +3091,13 @@ if(!booted){
   showNoWebGL();
 }else{
   buildWorld();
+  // The camera lerps toward its goal, and it starts at the origin — so without
+  // this the first ~40 frames of every session are a fly-in from inside the
+  // ground to the framing the player keeps. Harmless before 4C, because a
+  // fly-in to a fixed place is at worst a flourish; worth removing now that a
+  // returning player has a SAVED zoom, since flying to a restored view reads as
+  // the game changing its mind about the framing rather than restoring it.
+  snapCamera();
   initJoystick();
   buildRewardsDOM();
   buildAnchors();
