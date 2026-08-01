@@ -29,6 +29,21 @@
   --wood:#b07b45; --wood2:#8f5f30; --text:#4a3b2a; --text2:#8a7a64;
   --green:#5cbf4f; --green2:#43a637; --purple:#a06be0;
   --shadow:0 4px 0 rgba(0,0,0,0.12);
+  /* BACKLOG 5A.3 — DECISION D7, taken by the owner 2026-08-01 from screenshots
+     at 820x1180: "the UI grows with the screen". A button is therefore the same
+     FRACTION of the screen on every device rather than the same physical size.
+
+     --ui is the one scale factor the whole HUD multiplies by. It is 1 on every
+     phone — the sizes the owner has already approved are untouched — and ramps
+     to 1.45 on a tablet. applyUIScale() writes it (see the CONTROLLER layer);
+     this declaration is the fallback, so if that never runs the game renders at
+     exactly its pre-5A sizes rather than at some half-applied middle.
+
+     ANYTHING SIZED IN PX THAT THE PLAYER TOUCHES OR READS SHOULD USE IT. The
+     3D world must NOT: the farmer is 4.4% of screen height on all three
+     viewports already, because that is a property of the lens and the distance
+     rather than of the screen (4C). 5A is a UI-sizing phase, not a camera one. */
+  --ui:1;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;}
 html,body{margin:0;height:100%;overflow:hidden;
@@ -47,10 +62,15 @@ html,body{margin:0;height:100%;overflow:hidden;
 #topBar{position:absolute;top:0;left:0;right:0;z-index:20;pointer-events:none;
   padding:calc(env(safe-area-inset-top) + 8px) 10px 0;
   display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
+/* 5A.3 — each pill is scaled about the corner it is anchored to, so it grows
+   into the screen instead of drifting toward the middle. transform rather than
+   restated px sizes: a pill is a self-contained widget whose internals are all
+   in proportion already, so one factor moves the whole thing correctly. */
 .pill{pointer-events:auto;display:flex;align-items:center;gap:6px;
   background:rgba(255,255,255,0.94);border-radius:999px;padding:4px 12px 4px 4px;
   box-shadow:0 3px 0 rgba(0,0,0,0.14), inset 0 1px 0 #fff;font-weight:800;}
-#lvlPill{padding:3px 12px 3px 3px;}
+#lvlPill{padding:3px 12px 3px 3px;transform:scale(var(--ui));transform-origin:top left;}
+#coinPill{transform:scale(var(--ui));transform-origin:top right;}
 #lvlAvatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(#ffd98a,#f5a623);
   display:flex;align-items:center;justify-content:center;font-size:15px;
   box-shadow:inset 0 -2px 0 rgba(0,0,0,0.12);}
@@ -75,7 +95,7 @@ html,body{margin:0;height:100%;overflow:hidden;
    grep, so a second occurrence makes them print two matches joined together.
    That exact mistake was made here and caught by `npm run serve`. */
 #verTag{position:absolute;right:11px;bottom:calc(env(safe-area-inset-bottom) + 9px);
-  font-size:10px;font-weight:800;color:rgba(74,60,40,0.5);
+  font-size:calc(10px * var(--ui));font-weight:800;color:rgba(74,60,40,0.5);
   text-shadow:0 1px 0 rgba(255,255,255,0.45);pointer-events:none;z-index:20;}
 
 /* Shown only when the device cannot give us a 3D context. Opaque and above
@@ -94,42 +114,58 @@ html,body{margin:0;height:100%;overflow:hidden;
 /* BACKLOG 3.1/3.3/3.4. One absolutely-positioned column; everything inside
    flows, so nothing below needs a magic offset that has to be re-tuned every
    time the chips change height. */
-#hudTop{position:absolute;top:calc(env(safe-area-inset-top) + 46px);left:0;right:0;z-index:20;
+/* 5A.3 — the 46px is "clear the top bar", and the top bar is a scaled pill, so
+   this offset has to scale with it or the card climbs over the coin pill on a
+   tablet. The safe-area inset is NOT scaled: it is a real physical distance
+   reported by the device, not a design size. */
+#hudTop{position:absolute;top:calc(env(safe-area-inset-top) + 46px * var(--ui));left:0;right:0;z-index:20;
   padding:0 10px;display:flex;flex-direction:column;gap:6px;pointer-events:none;}
 /* Warm cream so the white chips read as slots sitting ON a card. A white panel
    behind white chips is mush — the figure/ground has to survive at arm's
    length on a phone in daylight. */
-#taskPanel{background:rgba(252,246,232,0.92);border-radius:16px;padding:6px 8px 7px;
+/* 5A.3 — the card stays FULL-BLEED at every size; what scales is everything
+   inside it. Growing the box itself would push it off both screen edges, and
+   the card being edge-to-edge is what makes three chips read as three slots. So
+   the type and the spacing scale and the width does not. */
+#taskPanel{background:rgba(252,246,232,0.92);border-radius:calc(16px * var(--ui));
+  padding:calc(6px * var(--ui)) calc(8px * var(--ui)) calc(7px * var(--ui));
   box-shadow:0 4px 0 rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.7);
-  display:flex;flex-direction:column;gap:5px;}
+  display:flex;flex-direction:column;gap:calc(5px * var(--ui));}
 /* 3.3 — the level bar moved OUT of the top-left pill and in here, above the
    tasks, with "X / Y tasks" beside it (3.4). One idea, one place: the bar
    measures the set, and the chips are a window onto that same set. */
-#taskMeterRow{display:flex;align-items:center;gap:8px;padding:0 2px;}
-#taskMeter{flex:1;height:7px;background:#e4d8bd;border-radius:4px;overflow:hidden;
+#taskMeterRow{display:flex;align-items:center;gap:calc(8px * var(--ui));padding:0 2px;}
+#taskMeter{flex:1;height:calc(7px * var(--ui));background:#e4d8bd;border-radius:4px;overflow:hidden;
   box-shadow:inset 0 1px 2px rgba(0,0,0,0.10);}
 #taskMeterFill{height:100%;width:0%;border-radius:4px;
   background:linear-gradient(90deg,var(--sun),var(--sun2));transition:width .3s;}
-#taskCount{font-size:10.5px;font-weight:800;color:var(--text2);white-space:nowrap;letter-spacing:.2px;}
-#taskStrip{display:flex;gap:6px;}
+#taskCount{font-size:calc(10.5px * var(--ui));font-weight:800;color:var(--text2);white-space:nowrap;letter-spacing:.2px;}
+#taskStrip{display:flex;gap:calc(6px * var(--ui));}
 /* 3.1b — a chip is ALWAYS one third of the strip, whether 3, 2 or 1 are
    showing. The owner was explicit: with two left, "keep things the same size
    always... the space where it holds the other two will be empty". `flex:1`
    stretched the survivors ~50% wider, which reads as "my tasks got bigger"
    instead of "one of my three slots is gone". */
-.task{pointer-events:auto;flex:0 0 calc((100% - 12px)/3);min-width:0;background:#fff;
-  border-radius:12px;padding:6px 8px 7px;box-shadow:0 2px 0 rgba(0,0,0,0.10);
-  display:flex;flex-direction:column;gap:4px;animation:taskIn .35s cubic-bezier(.34,1.56,.64,1);}
+/* 5A.3 — the 12px is TWO #taskStrip gaps of 6px, subtracted so three chips plus
+   two gaps come to exactly 100%. The gap now scales, so this must scale with it
+   or 3.1b breaks: chips would stop being exactly one third of the strip and the
+   third one would be clipped. One number, two places, and they have to agree. */
+.task{pointer-events:auto;flex:0 0 calc((100% - 12px * var(--ui))/3);min-width:0;background:#fff;
+  border-radius:calc(12px * var(--ui));
+  padding:calc(6px * var(--ui)) calc(8px * var(--ui)) calc(7px * var(--ui));
+  box-shadow:0 2px 0 rgba(0,0,0,0.10);
+  display:flex;flex-direction:column;gap:calc(4px * var(--ui));animation:taskIn .35s cubic-bezier(.34,1.56,.64,1);}
 @keyframes taskIn{from{transform:translateY(-12px) scale(.9);opacity:0;}to{transform:none;opacity:1;}}
 /* 3.2 — bigger and bolder. Two lines instead of truncating to "…" (the middle
    chip always did); the min-height keeps every chip's bar on the same line
    whether its title wraps or not. */
-.task .tTitle{font-size:11px;font-weight:800;line-height:1.15;display:flex;gap:4px;align-items:flex-start;
+.task .tTitle{font-size:calc(11px * var(--ui));font-weight:800;line-height:1.15;display:flex;
+  gap:calc(4px * var(--ui));align-items:flex-start;
   min-height:2.2em;overflow:hidden;}
 .task .tTitle span:last-child{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
   overflow:hidden;}
-.task .tTitle span:first-child{flex:0 0 auto;font-size:12px;line-height:1.1;}
-.task .tBar{height:6px;background:#e8dfc9;border-radius:4px;overflow:hidden;}
+.task .tTitle span:first-child{flex:0 0 auto;font-size:calc(12px * var(--ui));line-height:1.1;}
+.task .tBar{height:calc(6px * var(--ui));background:#e8dfc9;border-radius:4px;overflow:hidden;}
 .task .tFill{height:100%;width:0%;background:linear-gradient(90deg,#7cc94f,#4fae35);border-radius:4px;
   transition:width .3s;position:relative;overflow:hidden;}
 /* Wide and soft on purpose. A narrow hard glint is invisible on a 6px bar —
@@ -144,7 +180,7 @@ html,body{margin:0;height:100%;overflow:hidden;
    common height, so without this a plain progress bar floats high beside a
    taller claim row and leaves a white gap under it. */
 .task .tBody{display:flex;flex-direction:column;gap:2px;margin-top:auto;}
-.task .tNums{font-size:10px;font-weight:800;color:var(--text2);text-align:right;line-height:1;}
+.task .tNums{font-size:calc(10px * var(--ui));font-weight:800;color:var(--text2);text-align:right;line-height:1;}
 /* "This one just ticked." Fires ONLY on the chip whose counter actually moved
    (BACKLOG 3.6): earning a coin nudges the coin task and leaves the other two
    completely still.
@@ -234,7 +270,12 @@ html,body{margin:0;height:100%;overflow:hidden;
    longer measures anything there. */
 
 /* ---------- right rail: ad reward buttons ---------- */
-#rightRail{position:absolute;right:8px;top:50%;transform:translateY(-50%);z-index:21;
+/* 5A.3 — scaled about the RIGHT edge it is pinned to, so it grows inward and
+   stays on screen. measureAnchorBounds() reads this rail's live left edge to
+   decide where world buttons may be drawn, so the two stay in agreement without
+   anything being told the scale twice. */
+#rightRail{position:absolute;right:8px;top:50%;transform:translateY(-50%) scale(var(--ui));
+  transform-origin:right center;z-index:21;
   display:flex;flex-direction:column;gap:8px;}
 .rw{width:54px;height:54px;border:none;border-radius:15px;cursor:pointer;font-family:inherit;
   background:linear-gradient(#fffdf6,#ffe4d0);box-shadow:0 4px 0 #d79a72, inset 0 2px 0 #fff;
@@ -249,7 +290,8 @@ html,body{margin:0;height:100%;overflow:hidden;
 .rw.cool .adTag{background:#8d8d8d;box-shadow:0 2px 0 #6f6f6f;}
 
 /* ---------- minimap (bottom-left, small) ---------- */
-#miniMap{position:absolute;left:8px;bottom:calc(env(safe-area-inset-bottom) + 10px);z-index:20;}
+#miniMap{position:absolute;left:8px;bottom:calc(env(safe-area-inset-bottom) + 10px);z-index:20;
+  transform:scale(var(--ui));transform-origin:bottom left;}
 .mmTrack{position:relative;width:96px;height:64px;background:rgba(150,205,120,0.85);
   border-radius:12px;border:2px solid rgba(255,255,255,0.92);
   box-shadow:0 3px 0 rgba(0,0,0,0.15), inset 0 2px 5px rgba(0,0,0,0.12);}
@@ -300,9 +342,16 @@ html,body{margin:0;height:100%;overflow:hidden;
    (21), so a world button can never paint over the HUD. */
 #worldAnchors{position:fixed;inset:0;z-index:15;pointer-events:none;}
 .wAnchor{position:fixed;left:0;top:0;will-change:transform;}
-.wBtn{pointer-events:auto;display:flex;align-items:center;gap:5px;
+/* 5A.3 — a world button is a CONTROL standing in the scene, so it scales with
+   the screen like the rest of the UI. Sized rather than transform-scaled,
+   because .wBtn already owns the press squash, the affordable pop and the 4.3
+   shake; adding a base scale to that transform would make every one of them
+   have to know about --ui, and a shake that forgets it would snap the button to
+   phone size mid-animation. Sizing leaves all three transforms untouched. */
+.wBtn{pointer-events:auto;display:flex;align-items:center;gap:calc(5px * var(--ui));
   border:0;font-family:inherit;cursor:pointer;
-  padding:5px 10px 6px;border-radius:13px;
+  padding:calc(5px * var(--ui)) calc(10px * var(--ui)) calc(6px * var(--ui));
+  border-radius:calc(13px * var(--ui));
   transition:background .18s,box-shadow .18s,color .18s,opacity .18s,filter .18s;
   /* BACKLOG 4.2 — the DEFAULT state is "can't afford this yet": still fully
      legible, because the player needs to read the price to know what to save
@@ -310,16 +359,16 @@ html,body{margin:0;height:100%;overflow:hidden;
      not read as "still loading". */
   background:linear-gradient(#fdfcfa,#ebe7e0);color:#9a8e7e;
   box-shadow:0 3px 0 rgba(0,0,0,.13),0 0 0 2px rgba(255,255,255,.85) inset;}
-.wBtn .wIcon{font-size:14px;line-height:1;}
-.wBtn .wLabel{font-size:11px;font-weight:800;letter-spacing:.2px;white-space:nowrap;}
-.wBtn .wCost{display:flex;align-items:center;gap:3px;font-size:11px;font-weight:800;
-  white-space:nowrap;}
+.wBtn .wIcon{font-size:calc(14px * var(--ui));line-height:1;}
+.wBtn .wLabel{font-size:calc(11px * var(--ui));font-weight:800;letter-spacing:.2px;white-space:nowrap;}
+.wBtn .wCost{display:flex;align-items:center;gap:calc(3px * var(--ui));font-size:calc(11px * var(--ui));
+  font-weight:800;white-space:nowrap;}
 /* BACKLOG 4.4 — the up-arrow marks a repeatable UPGRADE as opposed to a one-off
    purchase. It is what tells the player "this one gets better again later", so
    it must survive the unaffordable state (it describes the item, not whether
    you can buy it right now) while still desaturating with everything else. */
-.wUp{display:none;font-size:9px;line-height:1;color:var(--green2);
-  background:rgba(92,191,79,.16);border-radius:5px;padding:2px 3px;}
+.wUp{display:none;font-size:calc(9px * var(--ui));line-height:1;color:var(--green2);
+  background:rgba(92,191,79,.16);border-radius:5px;padding:calc(2px * var(--ui)) calc(3px * var(--ui));}
 .wBtn.up .wUp{display:inline-block;}
 .wBtn.can .wUp{color:#2f7a25;background:rgba(255,255,255,.55);}
 /* Unaffordable: drain the colour from the coin too, or a bright gold coin on a
@@ -377,7 +426,22 @@ html,body{margin:0;height:100%;overflow:hidden;
 
    pointer-events stays none from #worldAnchors: this is information, not a
    control, and it must never eat a tap meant for the sheep underneath it. */
-.wGauge{position:relative;width:34px;height:34px;border-radius:50%;
+/* 5A.3 / 5A.6 — THE 34 HERE AND `ANCHOR_STACK` IN THE CONTROLLER ARE THE SAME
+   NUMBER, AND THEY MUST STAY THE SAME NUMBER.
+
+   ANCHOR_STACK does two unrelated jobs: it is "one button height plus a gap"
+   for stacking anchors that share a world position, AND it is why a gauge's
+   card-collision floor lands correctly, since a gauge is exactly this tall and
+   its shell is translated -100%. Scaling this width while leaving ANCHOR_STACK
+   at a flat 34 is the one-line change that looks obviously right and silently
+   starts culling rings just under the task card — rings appearing to vanish at
+   random. That is the trap BACKLOG 5A.6 warns about.
+
+   It is defused here by construction rather than by care: applyUIScale() sets
+   ANCHOR_STACK to `34 * --ui` from the same factor this rule uses, so the two
+   cannot drift apart. If you change the 34, change it in ANCHOR_STACK's
+   declaration too — they are one measurement written twice. */
+.wGauge{position:relative;width:calc(34px * var(--ui));height:calc(34px * var(--ui));border-radius:50%;
   display:flex;align-items:center;justify-content:center;
   /* from -90deg so the sweep starts at 12 o'clock like a clock face, rather
      than at 3 o'clock where conic-gradient starts by default. */
@@ -385,9 +449,9 @@ html,body{margin:0;height:100%;overflow:hidden;
   box-shadow:0 2px 0 rgba(0,0,0,.13),0 0 0 1.5px rgba(255,255,255,.85);}
 /* The opaque inner disc is what makes this read as a RING rather than a pie
    chart, and it doubles as the plate the number sits on. */
-.wGauge::before{content:'';position:absolute;inset:4.5px;border-radius:50%;
+.wGauge::before{content:'';position:absolute;inset:calc(4.5px * var(--ui));border-radius:50%;
   background:rgba(255,255,255,.95);}
-.wGaugeT{position:relative;font-size:10.5px;font-weight:800;letter-spacing:-.2px;
+.wGaugeT{position:relative;font-size:calc(10.5px * var(--ui));font-weight:800;letter-spacing:-.2px;
   color:var(--text);line-height:1;}
 
 /* ---------- fx / overlays ---------- */
@@ -450,7 +514,7 @@ html,body{margin:0;height:100%;overflow:hidden;
       <span id="coinCount">0</span>
     </div>
   </div>
-  <div id="verTag">v5.1</div>
+  <div id="verTag">v5.2</div>
   <div id="noWebGL">
     <div class="emoji">🌾</div>
     <h1>This browser can't show the farm</h1>
@@ -1673,9 +1737,16 @@ const _aV=new THREE.Vector3();
 // Generous on purpose: a button belonging to something at the very edge of
 // the view should not flicker in and out as the character walks.
 const ANCHOR_MARGIN=64;
-// One button-height plus a gap. Anchors sharing a world position stack upward
-// by multiples of this.
-const ANCHOR_STACK=34;
+/* One button-height plus a gap. Anchors sharing a world position stack upward
+   by multiples of this.
+
+   NOT a const since 5A.3. It is the pixel height of a .wGauge, and .wGauge now
+   scales with --ui (D7: the UI grows with the screen), so this has to scale by
+   the same factor or the two jobs this number does come apart — see the long
+   note on .wGauge in the stylesheet. applyUIScale() is the ONE place that
+   writes it, from the ONE factor that also drives the CSS. */
+let ANCHOR_STACK=34;
+const ANCHOR_STACK_BASE=34;
 /* How close the character must be to press a world button (BACKLOG 4.6 / D5).
 
    In world units. A crop bed is 8 across and beds sit 9.5 apart, so 11 means
@@ -1700,8 +1771,44 @@ const ANCHOR_REACH=11;
    Measured from the card rather than hard-coded, because the card's height
    changes with the number of chips — and re-measured on resize, since rule 18
    says nothing may assume one viewport. */
+/* BACKLOG 5A.3 — DECISION D7: the UI grows with the screen.
+ *
+ * ONE factor, written to --ui, which the whole stylesheet multiplies by and
+ * which ANCHOR_STACK is derived from. Set here rather than in a CSS media query
+ * for two reasons: ANCHOR_STACK is JavaScript and has to read the same number,
+ * and a query with breakpoints would step rather than ramp, which is exactly
+ * the "assumes one viewport" habit rule 18 exists to stop.
+ *
+ * THE RAMP, and why it starts where it does. Every phone stays at exactly 1.0 —
+ * the sizes the owner has already approved over four phases must not move, and
+ * the widest phone in portrait is ~440px. So the ramp begins at 560px, which no
+ * phone reaches and every tablet clears, and tops out at 1.45 — the factor from
+ * the picture the owner chose when answering D7 (820x1180 with the HUD grown).
+ * Between those it is linear in width, so a 700px-wide device is not a special
+ * case anybody has to think about.
+ *
+ * Width, not height, and not the diagonal: what makes a tablet's UI read as
+ * postage stamps is how much WIDER the screen is than the button, and a phone
+ * held in landscape should not suddenly grow its HUD.
+ */
+const UI_RAMP_FROM=560, UI_MAX=1.45;
+function uiScale(){
+  return Math.min(UI_MAX, Math.max(1, innerWidth/UI_RAMP_FROM));
+}
+function applyUIScale(){
+  const k=uiScale();
+  document.documentElement.style.setProperty('--ui',k.toFixed(4));
+  // Kept equal to the CSS by construction, not by remembering. See .wGauge.
+  ANCHOR_STACK=ANCHOR_STACK_BASE*k;
+}
+
 let anchorTopLimit=0, anchorLeftLimit=0, anchorRightLimit=0;
 function measureAnchorBounds(){
+  // Scale FIRST: every measurement below reads a laid-out box, and those boxes
+  // change size when --ui changes. Measuring before applying would record the
+  // previous screen's HUD and leave world buttons clamped to the wrong band for
+  // one resize — visible as buttons sitting under the task card after a rotate.
+  applyUIScale();
   const hud=$('#hudTop');
   anchorTopLimit=hud?hud.getBoundingClientRect().bottom+6:0;
   // The right rail is z-index 21 and anchors are 15, so a button projecting
@@ -2520,6 +2627,56 @@ function updateWorldLife(dt,t){
     const mk=sh.userData.marker;
     if(mk.visible){ mk.position.y=2.3+Math.sin(t*4+i)*0.2; mk.rotation.y+=dt*2; }
   });
+
+  /* BACKLOG 5A.6 — SHEEP SEPARATION, and this is the fix that is NOT the trap.
+
+     The complaint is that the 34px countdown rings collide when the flock
+     bunches. The cheap-looking fix is "scale .wGauge with the zoom", which is
+     one line and breaks something else: ANCHOR_STACK is that same 34 doing
+     double duty as the gauge's card-collision floor, so shrinking the ring
+     starts culling rings just under the task card — they appear to vanish at
+     random. (5A.3 does now scale the gauge, but by a factor ANCHOR_STACK is
+     DERIVED from, so the two cannot come apart. That is a different change and
+     it fixes screen size, not bunching.)
+
+     The real cause is upstream and has nothing to do with the UI: sheep have no
+     separation at all. Each walks to its own random target and they pass
+     straight through one another, so any two can end up at the same point and
+     their rings are then exactly on top of each other. Fixing it here leaves
+     every UI constant untouched.
+
+     THE NUMBER. Measured in 4C and recorded in BACKLOG 5A.6 — rings touch below
+     ~1.7 world units of separation at v4.9's camera distance, ~2.2 at the
+     default and ~2.3 at the far zoom limit. 2.5 clears the worst of those with
+     margin, and the meadow is a 25.5 x 19.5 wander box holding at most 5 sheep,
+     so there is room for it without them looking penned.
+
+     NOT a 4C regression: v4.9 collides too. A sheep is ~1.5 units wide, so a
+     spread below the collision threshold was always reachable — zoom only
+     widened the window.
+
+     Symmetric half-steps rather than moving one sheep, so no sheep is
+     privileged and the flock cannot drift as a whole. Applied to POSITION and
+     not to the wander target: the targets stay random, so the flock still
+     wanders naturally and simply refuses to overlap on the way. */
+  const SHEEP_SEP=2.5;
+  for(let a=0;a<sheep3D.length;a++){
+    for(let b=a+1;b<sheep3D.length;b++){
+      const A=sheep3D[a], B=sheep3D[b];
+      if(!A.visible||!B.visible) continue;
+      let dx=B.position.x-A.position.x, dz=B.position.z-A.position.z;
+      let d=Math.hypot(dx,dz);
+      // Exactly coincident: no direction to push along, so pick one from the
+      // pair's indices. Deterministic rather than random, or the shots harness
+      // would photograph a different arrangement every run.
+      if(d<1e-4){ dx=Math.cos(a*2.399+b); dz=Math.sin(a*2.399+b); d=1; }
+      if(d<SHEEP_SEP){
+        const push=(SHEEP_SEP-d)/d*0.5;
+        A.position.x-=dx*push; A.position.z-=dz*push;
+        B.position.x+=dx*push; B.position.z+=dz*push;
+      }
+    }
+  }
   plots3D.forEach((g,i)=>{
     if(i>=S.unlockedPlots) return;
     const holder=g.userData.crops[FARM.crops[S.cropTier]];
