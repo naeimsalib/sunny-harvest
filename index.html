@@ -428,7 +428,7 @@ html,body{margin:0;height:100%;overflow:hidden;
       <span id="coinCount">0</span>
     </div>
   </div>
-  <div id="verTag">v4.6</div>
+  <div id="verTag">v4.7</div>
   <div id="noWebGL">
     <div class="emoji">🌾</div>
     <h1>This browser can't show the farm</h1>
@@ -904,10 +904,28 @@ function initThree(){
 
   resize();
   window.addEventListener('resize',resize);
+  /* An installed home-screen web app does not have its final viewport height at
+     load: iOS settles the status-bar and home-indicator insets a moment later,
+     and `resize` does not reliably fire for it. The canvas therefore kept the
+     height it was built with and the body's sky-blue showed through as a band
+     across the bottom of the screen — visible in the owner's phone screenshots,
+     and invisible in every desktop and simulator capture, because only a real
+     installed app has that settling behaviour.
+
+     visualViewport reports the actual visible area and does fire, and the two
+     deferred calls cover the initial settle. Cheap, idempotent, and it also
+     covers rotation (rule 18). */
+  if(window.visualViewport) visualViewport.addEventListener('resize',resize);
+  addEventListener('orientationchange',()=>setTimeout(resize,150));
+  setTimeout(resize,300); setTimeout(resize,1200);
   function resize(){
     const w=wrap.clientWidth,h=wrap.clientHeight;
+    if(!w||!h) return;
     renderer.setSize(w,h,false);
     camera.aspect=w/h; camera.updateProjectionMatrix();
+    // The anchor safe-band is expressed in screen pixels, so it has to be
+    // re-measured whenever the viewport changes or the clamps drift.
+    if(typeof measureAnchorBounds==='function') measureAnchorBounds();
   }
 }
 
@@ -1552,10 +1570,15 @@ const ANCHOR_MARGIN=64;
 // by multiples of this.
 const ANCHOR_STACK=34;
 /* How close the character must be to press a world button (BACKLOG 4.6 / D5).
-   In world units: crop beds sit 9.5 apart and a zone is ~34 wide, so 16 lets
-   the player stand anywhere sensible beside a thing and reach it, without
-   letting one zone's buttons be pressed from inside another. */
-const ANCHOR_REACH=16;
+
+   In world units. A crop bed is 8 across and beds sit 9.5 apart, so 11 means
+   "standing at this thing or immediately beside it" — you can reach the bed
+   you are on and just about its neighbour, and nothing further.
+
+   Was 16, which the owner tested and rejected: "I walked away and can still
+   press them". 16 is nearly two bed-widths, which reads as acting on something
+   you are plainly not next to. D5's whole point is that you must walk over. */
+const ANCHOR_REACH=11;
 /* The lowest screen y an anchor may be drawn at, i.e. just under the task card.
    The card owns z-index 20 and anchors sit at 15, so without this an anchor
    belonging to something at the back of a zone slides underneath the HUD and
@@ -1639,8 +1662,35 @@ function updateAnchors(){
     const behind=_aV.z>1;
     const sx=Math.round((_aV.x*0.5+0.5)*w);
     const sy=Math.round((-_aV.y*0.5+0.5)*h);
-    const vis=!behind && sx>-ANCHOR_MARGIN && sx<w+ANCHOR_MARGIN
-                      && sy>-ANCHOR_MARGIN && sy<h+ANCHOR_MARGIN;
+
+    // Work out where the button would ACTUALLY be drawn — stack offset and
+    // all — before deciding whether to draw it. Deciding visibility from the
+    // raw projection and then moving the button afterwards is what let distant
+    // buttons smear across the top of the screen.
+    const st=a.stack||0, hw=a.halfW||0;
+    const floor=anchorTopLimit+ANCHOR_STACK*(1+(a.stackMax||st)-st);
+    const lo=anchorLeftLimit+hw, hi=Math.max(anchorLeftLimit+hw,anchorRightLimit-hw);
+    let lift=sy-st*ANCHOR_STACK, px=sx, vis=!behind;
+
+    if(a.near!==false){
+      // IN REACH — this is the button the player is trying to press, so keep it
+      // on screen and clear of the HUD even when its object projects awkwardly.
+      lift=Math.max(floor,lift);
+      px=Math.min(Math.max(px,lo),hi);
+      vis=vis && sx>-ANCHOR_MARGIN && sx<w+ANCHOR_MARGIN
+              && sy>-ANCHOR_MARGIN && sy<h+ANCHOR_MARGIN;
+    }else{
+      // OUT OF REACH — never repositioned, and never drawn anywhere it would
+      // overlap the task card, the phone's status bar or the edge rails.
+      //
+      // A button for something far away is information, not a control. If it
+      // cannot sit in its honest place, it is not drawn at all. Clamping these
+      // (the previous behaviour) made them slide along the top of the screen
+      // and across the iOS status bar as the player walked — reported by the
+      // owner as "it moves away until a certain point", and visible in their
+      // screenshots as three faded buttons sitting over the clock and battery.
+      vis=vis && lift>=floor && lift<h && px>=lo && px<=hi;
+    }
     if(vis!==a.shown){ a.shell.style.display=vis?'block':'none'; a.shown=vis; }
     if(!vis) continue;
     // Write ONLY on change. updateCamera() lerps toward its goal, so the camera
@@ -1649,37 +1699,15 @@ function updateAnchors(){
     // still character produce ZERO style writes instead of one per anchor per
     // frame. Measured with `npm run churn`; without the rounding it never
     // settles.
-    if(sx!==a.sx||sy!==a.sy){
-      a.sx=sx; a.sy=sy;
-      // `stack` lifts an anchor by whole button-heights so several buttons can
-      // share one world position (the farm's three upgrades all belong to the
-      // farm, not to a spot in it) without landing on top of each other.
-      // The floor keeps the topmost one clear of the task card — see
-      // anchorTopLimit. It has to account for the whole GROUP, not just this
-      // button: flooring each one independently pushes them all onto the same
-      // line and the stack collapses into an unreadable pile. Measured that
-      // happening, which is why stackMax exists.
-      const st=a.stack||0;
-      let lift=sy-st*ANCHOR_STACK, px=sx;
-      // Clamp ONLY what the player can actually reach.
-      //
-      // The clamp exists to rescue a button you are standing beside that
-      // happens to project behind the task card or under an edge rail. A
-      // distant thing does not need rescuing — it genuinely is somewhere else,
-      // and letting it project naturally (and slide off screen) is honest.
-      //
-      // Clamping everything is also what made unrelated groups collide: with
-      // the character south of the whole farm, the plot button and the barn's
-      // upgrade stack both hit the same floor and printed on top of each
-      // other. Photographed, which is the only way that was ever going to be
-      // noticed.
-      if(a.near!==false){
-        const floor=anchorTopLimit+ANCHOR_STACK*(1+(a.stackMax||st)-st);
-        lift=Math.max(floor,lift);
-        const hw=a.halfW||0;
-        const lo=anchorLeftLimit+hw, hi=anchorRightLimit-hw;
-        px=Math.min(Math.max(sx,lo),Math.max(lo,hi));
-      }
+    // Guard on the FINAL drawn position, not the raw projection. `stack` lifts
+    // an anchor by whole button-heights so several buttons can share one world
+    // position (the farm's three upgrades belong to the farm, not to a spot in
+    // it) without landing on top of each other, and the floor accounts for the
+    // whole GROUP — flooring each button independently pushes them all onto one
+    // line and the stack collapses into an unreadable pile. Measured that
+    // happening, which is why stackMax exists.
+    if(px!==a.sx||lift!==a.sy){
+      a.sx=px; a.sy=lift;
       a.shell.style.transform='translate3d('+px+'px,'+lift+'px,0) translate(-50%,-100%)';
     }
   }
