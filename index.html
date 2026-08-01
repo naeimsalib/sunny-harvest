@@ -428,7 +428,7 @@ html,body{margin:0;height:100%;overflow:hidden;
       <span id="coinCount">0</span>
     </div>
   </div>
-  <div id="verTag">v4.7</div>
+  <div id="verTag">v4.8</div>
   <div id="noWebGL">
     <div class="emoji">🌾</div>
     <h1>This browser can't show the farm</h1>
@@ -510,28 +510,28 @@ const CROP_NAMES={carrot:'Carrot',tomato:'Tomato',sunflower:'Sunflower'};
 
 const TASK_CHAIN = [
   { id:'t1',  icon:'🥕', title:'Harvest 5 crops',            type:'counter', ev:'harvest', n:5,   rMin:1.0 },
-  { id:'t2',  icon:'🟫', title:'Own 3 plots',                type:'state',   check:s=>s.unlockedPlots>=3, rMin:1.2 },
+  { id:'t2',  icon:'🟫', title:'Own 3 plots',                type:'state',   now:s=>s.unlockedPlots, goal:3, check:s=>s.unlockedPlots>=3, rMin:1.2 },
   { id:'t3',  icon:'💰', title:'Collect 250 coins',          type:'counter', ev:'coins',   n:250, rMin:1.2 },
   { id:'t4',  icon:'🍅', title:'Unlock Tomatoes',            type:'state',   check:s=>s.cropTier>=1, rMin:1.5 },
   { id:'t5',  icon:'🧺', title:'Harvest 15 crops',           type:'counter', ev:'harvest', n:15,  rMin:1.5 },
   { id:'t6',  icon:'📺', title:'Watch 1 ad reward',          type:'counter', ev:'ad',      n:1,   rMin:2.0 },
-  { id:'t7',  icon:'🟫', title:'Own 4 plots',                type:'state',   check:s=>s.unlockedPlots>=4, rMin:1.5 },
-  { id:'t8',  icon:'⏱️', title:'Buy Faster Growth Lv 2',     type:'state',   check:s=>s.upgLevels.speed>=2, rMin:1.5 },
+  { id:'t7',  icon:'🟫', title:'Own 4 plots',                type:'state',   now:s=>s.unlockedPlots, goal:4, check:s=>s.unlockedPlots>=4, rMin:1.5 },
+  { id:'t8',  icon:'⏱️', title:'Buy Faster Growth Lv 2',     type:'state',   now:s=>s.upgLevels.speed, goal:2, check:s=>s.upgLevels.speed>=2, rMin:1.5 },
   { id:'t9',  icon:'💰', title:'Collect 1,800 coins',        type:'counter', ev:'coins',   n:1800, rMin:1.8 },
-  { id:'t10', icon:'🌻', title:'Unlock Sunflowers',          type:'state',   check:s=>s.cropTier>=2, rMin:2.0 },
+  { id:'t10', icon:'🌻', title:'Crop upgrade 2 — Sunflowers', type:'state',  now:s=>s.cropTier, goal:2, check:s=>s.cropTier>=2, rMin:2.0 },
   { id:'t11', icon:'🤖', title:'Buy the Harvest Bot',        type:'state',   check:s=>s.upgLevels.auto>=1, rMin:2.0 },
   { id:'t12', icon:'📺', title:'Watch 2 ad rewards',         type:'counter', ev:'ad',      n:2,   rMin:2.5 },
-  { id:'t13', icon:'🟫', title:'Fill the farm — 6 plots',    type:'state',   check:s=>s.unlockedPlots>=6, rMin:2.5 },
+  { id:'t13', icon:'🟫', title:'Fill the farm — 6 plots',    type:'state',   now:s=>s.unlockedPlots, goal:6, check:s=>s.unlockedPlots>=6, rMin:2.5 },
   { id:'t14', icon:'💰', title:'Collect 7,000 coins',        type:'counter', ev:'coins',   n:7000, rMin:2.5 },
   { id:'t15', icon:'🐑', title:'Unlock the Meadow!',         type:'state',   check:s=>s.meadowOpen, rMin:3.0 },
   { id:'t16', icon:'🐑', title:'Buy your first sheep',       type:'state',   check:s=>s.sheep.length>=1, rMin:2.0 },
   { id:'t17', icon:'🧶', title:'Collect 10 wool',            type:'counter', ev:'wool',    n:10,  rMin:2.0 },
-  { id:'t18', icon:'🐑', title:'Grow the flock — 3 sheep',   type:'state',   check:s=>s.sheep.length>=3, rMin:2.5 },
+  { id:'t18', icon:'🐑', title:'Grow the flock — 3 sheep',   type:'state',   now:s=>s.sheep.length, goal:3, check:s=>s.sheep.length>=3, rMin:2.5 },
   { id:'t19', icon:'📺', title:'Watch 3 ad rewards',         type:'counter', ev:'ad',      n:3,   rMin:3.0 },
   { id:'t20', icon:'🧶', title:'Collect 30 wool',            type:'counter', ev:'wool',    n:30,  rMin:2.5 },
   { id:'t21', icon:'✨', title:'Upgrade Wool Quality',       type:'state',   check:s=>s.meadowLv.wool>=1, rMin:2.5 },
   { id:'t22', icon:'💰', title:'Collect 30,000 coins',       type:'counter', ev:'coins',   n:30000, rMin:3.0 },
-  { id:'t23', icon:'🐑', title:'Full flock — 5 sheep',       type:'state',   check:s=>s.sheep.length>=5, rMin:3.0 },
+  { id:'t23', icon:'🐑', title:'Full flock — 5 sheep',       type:'state',   now:s=>s.sheep.length, goal:5, check:s=>s.sheep.length>=5, rMin:3.0 },
   { id:'t24', icon:'🧺', title:'Harvest 90 crops',           type:'counter', ev:'harvest', n:90,  rMin:3.0 }
 ];
 // A level is one authored SET of tasks (decision D1). Level 1's set is the
@@ -664,9 +664,25 @@ function taskEvent(ev,n=1){
   });
   if(touched.length) renderTasks(touched);
 }
-function taskProgress(def){ return def.type==='counter'?Math.min(def.n,S.taskProg[def.id]||0):(def.check(S)?1:0); }
-function taskTarget(def){ return def.type==='counter'?def.n:1; }
-function taskComplete(def){ return taskProgress(def)>=taskTarget(def); }
+// BACKLOG 4A.1 — a state task is MEASURABLE when it carries a now()/goal pair.
+// Seven of Level 1's twelve are ("Own 3 plots" is 2 of 3, not a coin flip); the
+// other five are honestly one-step and stay binary. Progress for a state task is
+// derived live from S, never accumulated into S.taskProg — that is what makes it
+// monotonic for free and immune to a save written by an older build.
+function taskMeasured(def){ return def.type==='state' && typeof def.now==='function'; }
+function taskProgress(def){
+  if(def.type==='counter') return Math.min(def.n, S.taskProg[def.id]||0);
+  if(taskMeasured(def))    return Math.max(0, Math.min(def.goal, def.now(S)));
+  return def.check(S)?1:0;
+}
+function taskTarget(def){ return def.type==='counter' ? def.n : (taskMeasured(def)?def.goal:1); }
+// `check` stays the ONE completion test for every state task (4A.1). Deriving
+// completion from taskProgress() instead would quietly hand the progress BAR
+// authority over when a task finishes — a presentation change turning into an
+// economy change, which is exactly what rule 2 and this phase's brief forbid.
+function taskComplete(def){
+  return def.type==='counter' ? taskProgress(def)>=taskTarget(def) : def.check(S);
+}
 function taskReward(def){ return Math.max(15, Math.round(eps()*def.rMin*20/5)*5); }
 
 function claimTask(slot,mult){
@@ -2281,6 +2297,11 @@ function pulseChip(d){
 // is written onto the existing node. Nothing here recreates it.
 function syncTaskChip(d,def,i){
   const prog=taskProgress(def),target=taskTarget(def),done=taskComplete(def);
+  // BACKLOG 4A.2 — counters and measurable state tasks both read "2 / 3". Only a
+  // genuinely one-step task has no fraction to show, and it says so in words
+  // rather than faking "0 / 1" (owner's call, 2026-08-01). The blanket '…' that
+  // used to cover every state task is gone: it was the "•••" they reported.
+  const nums=(def.type==='counter'||taskMeasured(def)) ? fmt(prog)+' / '+fmt(target) : 'Not yet';
   if(d.dataset.taskId!==def.id){
     d.dataset.taskId=def.id;
     d.dataset.shape='';
@@ -2312,7 +2333,7 @@ function syncTaskChip(d,def,i){
       body.querySelector('[data-m="2"]').addEventListener('pointerdown',()=>AdManager.show(()=>{registerAdWatch();claimTask(slotOf(),2);}));
     }else{
       body.innerHTML=`<div class="tBar"><div class="tFill" style="width:${prog/target*100}%"></div></div>
-          <div class="tNums">${def.type==='counter'?fmt(prog)+' / '+fmt(target):'…'}</div>`;
+          <div class="tNums">${nums}</div>`;
     }
   }else if(done){
     // The reward scales with eps(), so it can drift while a finished chip waits
@@ -2321,7 +2342,6 @@ function syncTaskChip(d,def,i){
     if(d.dataset.reward!==r){ d.dataset.reward=r; body.querySelector('[data-m="1"]').textContent='+'+fmt(taskReward(def)); }
   }else{
     body.querySelector('.tFill').style.width=(prog/target*100)+'%';
-    const nums=def.type==='counter'?fmt(prog)+' / '+fmt(target):'…';
     const el=body.querySelector('.tNums');
     if(el.textContent!==nums) el.textContent=nums;
   }
