@@ -1540,12 +1540,27 @@ function buildWorld(){
      the check that mattered: 4C.1 already shrinks them along with everything
      else, and shrinking them again on top risked landing on white specks
      instead of small clouds. They are unchanged in number, height, speed and
-     wrap behaviour — only their size was the complaint. */
+     wrap behaviour — only their size was the complaint.
+
+     THE TRANSLUCENCY IS THE SECOND HALF OF THE FIX, and it addresses something
+     size alone could not. Once small, an OPAQUE white lump passing over the
+     meadow read as another sheep — sheep are also white lumps, and nothing in
+     the picture said "this one is 26 units in the air". Altitude is invisible
+     in a fixed top-down-ish view. At 0.85 you can see grass through a cloud,
+     which no sheep will ever do, so the ambiguity resolves without making them
+     bigger again — bigger being the one direction the owner ruled out.
+
+     depthWrite:false is required, not decorative. A cloud is three OVERLAPPING
+     spheres; with depth writing on, each sphere occludes the next and the
+     overlaps paint as hard-edged darker bands, which looks like a faceting bug
+     rather than a cloud. Turning it off still DEPTH-TESTS, so a cloud is
+     correctly hidden behind nearer solid objects — only cloud-against-itself
+     stops fighting. */
   const CLOUD_SCALE=0.45;
   for(let i=0;i<5;i++){
     const c=new THREE.Group();
     for(const p of [[0,0,0,2.1],[1.9,0.35,0.25,1.5],[-1.8,0.25,-0.15,1.4]]){
-      const m=new THREE.Mesh(new THREE.SphereGeometry(p[3],9,7),new THREE.MeshLambertMaterial({color:0xffffff}));
+      const m=new THREE.Mesh(new THREE.SphereGeometry(p[3],9,7),new THREE.MeshLambertMaterial({color:0xffffff,transparent:true,opacity:0.85,depthWrite:false}));
       m.position.set(p[0],p[1],p[2]); c.add(m);
     }
     c.scale.setScalar(CLOUD_SCALE);
