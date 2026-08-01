@@ -368,6 +368,45 @@ html,body{margin:0;height:100%;overflow:hidden;
    take a tap. */
 .wBtn.far{opacity:.5;box-shadow:0 1px 0 rgba(0,0,0,.10);pointer-events:none;}
 
+/* ---------- "how long until…?" readouts (BACKLOG 4B) ----------
+   A second KIND of world anchor. It reuses 4.1's shell/child split exactly:
+   .wAnchor still owns the projected position and still carries no transition,
+   and .wGauge is the child that owns every cosmetic property. The only
+   difference is what the child is — a button you press, or a dial you read.
+
+   Why a conic-gradient driven by ONE custom property rather than an SVG arc:
+   this is the highest-frequency element in the game (up to 11 of them, every
+   frame), so the update has to be the cheapest write that exists. Setting
+   `--fill` repaints one element, forces no layout, and touches no sibling.
+   An SVG stroke-dasharray would need an attribute write and a path recompute.
+
+   It is also structurally immune to rule 7, which is the hazard this phase is
+   most exposed to. An unregistered CSS custom property is NOT interpolatable,
+   so no transition can ever attach to `--fill` — the one property being
+   rewritten as the crop grows physically cannot be caught mid-interpolation.
+   The "dancing character" bug cannot be reintroduced here by accident.
+
+   The ring therefore SNAPS, deliberately. That matters for the one case the
+   work order calls out: growTime() is not constant, and starting a Sun Boost
+   halves it mid-grow, so the countdown genuinely jumps down. Snapping is the
+   honest reading — the crop really did just get faster — and animating the
+   jump would both hide the cause and reintroduce the transition conflict.
+
+   pointer-events stays none from #worldAnchors: this is information, not a
+   control, and it must never eat a tap meant for the sheep underneath it. */
+.wGauge{position:relative;width:34px;height:34px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  /* from -90deg so the sweep starts at 12 o'clock like a clock face, rather
+     than at 3 o'clock where conic-gradient starts by default. */
+  background:conic-gradient(from -90deg,var(--sun2) var(--fill,0%),rgba(255,255,255,.5) 0);
+  box-shadow:0 2px 0 rgba(0,0,0,.13),0 0 0 1.5px rgba(255,255,255,.85);}
+/* The opaque inner disc is what makes this read as a RING rather than a pie
+   chart, and it doubles as the plate the number sits on. */
+.wGauge::before{content:'';position:absolute;inset:4.5px;border-radius:50%;
+  background:rgba(255,255,255,.95);}
+.wGaugeT{position:relative;font-size:10.5px;font-weight:800;letter-spacing:-.2px;
+  color:var(--text);line-height:1;}
+
 /* ---------- fx / overlays ---------- */
 .flyCoin{position:fixed;width:26px;height:26px;pointer-events:none;z-index:60;transition:all .6s cubic-bezier(.5,-0.2,.6,1);}
 .popText{position:fixed;pointer-events:none;z-index:59;font-weight:800;color:#fff;
@@ -428,7 +467,7 @@ html,body{margin:0;height:100%;overflow:hidden;
       <span id="coinCount">0</span>
     </div>
   </div>
-  <div id="verTag">v4.8</div>
+  <div id="verTag">v4.9</div>
   <div id="noWebGL">
     <div class="emoji">🌾</div>
     <h1>This browser can't show the farm</h1>
@@ -1646,6 +1685,146 @@ function addAnchor(spec){
   return a;
 }
 
+/* BACKLOG 4B — a READOUT anchor: same shell, different child.
+
+   Deliberately a sibling of addAnchor() rather than a flag inside it. The two
+   share exactly one thing — the projected shell — and nothing else: a gauge
+   has no cost, no label, no buy action, no affordability, no proximity gate
+   and no tap handler. Threading a `kind` flag through addAnchor() and then
+   through refreshAnchors() would put four `if(gauge)` branches in code whose
+   whole job is buttons. They share the projection loop, which is the part
+   that was expensive to get right, and diverge everywhere else.
+
+   `read()` returns null to mean "draw nothing at all" — which is how 4B.4 is
+   implemented: a ready crop and a ready sheep already carry their own signal
+   (a pulsing ground ring, a floating marker) and a second indicator on top of
+   those is noise, not information. */
+const gauges=[];
+function addGauge(spec){
+  const shell=document.createElement('div');
+  shell.className='wAnchor';
+  shell.dataset.key=spec.key;
+  const gauge=document.createElement('div');
+  gauge.className='wGauge';
+  const gtext=document.createElement('span');
+  gtext.className='wGaugeT';
+  gauge.appendChild(gtext);
+  shell.appendChild(gauge);
+  // Born hidden, and this line is load-bearing. The shell has no transform
+  // until the first frame that projects it, so a gauge created visible sits at
+  // (0,0) — the top-left corner, over the phone's status bar. updateGauges()
+  // only writes `display` when the value CHANGES, and `gone` starts true, so
+  // nothing would ever have written it. The probe caught exactly this: five
+  // sheep rings stacked in the corner, which is the same defect class as
+  // v4.7's buttons smearing across the status bar.
+  shell.style.display='none';
+  // insertBefore, not appendChild — a gauge goes UNDER every button.
+  //
+  // Buttons and gauges share #worldAnchors and therefore share z-index 15, so
+  // paint order is decided by document order alone. Appending put the rings on
+  // top, and a sheep wandering past the meadow hub parked its countdown over
+  // the "Quick Shears" label, eating the first letter (photographed in
+  // 20-world-flock-growing before this line existed).
+  //
+  // Buttons win because a control must stay legible and tappable, while a
+  // readout is small, moves with its animal, and un-occludes itself a second
+  // later. The reverse — a static opaque button hidden behind a drifting ring —
+  // is the worse failure and it does not self-correct.
+  const box=$('#worldAnchors');
+  box.insertBefore(shell,box.firstChild);
+  // isGauge is read by updateAnchors() (never clamp a readout) and by
+  // refreshAnchors() (skip it — it has no label or cost to refresh).
+  // gone:true is the correct initial state: nothing is growing at boot until
+  // updateGauges() says otherwise, and it keeps the shell out of the
+  // projection loop until then.
+  // halfW is set here rather than measured, because the two things that make
+  // refreshAnchors() measure a button do not apply: a gauge is a fixed 34px
+  // circle whose width never changes with its content, and offsetWidth forces
+  // the layout flush that the per-frame loop must never cause.
+  const a=Object.assign({shell,gauge,gtext,isGauge:true,halfW:17,
+                         sx:NaN,sy:NaN,shown:false,gone:true,
+                         _step:-1,_secs:-1},spec);
+  anchors.push(a); gauges.push(a);
+  return a;
+}
+
+/* BACKLOG 4B.3 — THE QUANTISER. This is the whole phase.
+
+   P4's buttons change on STATE change: you can afford a thing or you cannot,
+   and that flips a handful of times a minute. 4B's readouts change on a float
+   that moves EVERY FRAME, on up to 6 plots + 5 sheep at once. Writing the DOM
+   once per element per frame is 660 writes a second, and it is the same shape
+   as both the "dancing character" bug (rule 7) and the 3.6 chip churn: a
+   property rewritten faster than anything can perceive it.
+
+   So nothing is written when the underlying float moves. Things are written
+   when the DISPLAYED value moves, which is a much slower signal:
+
+     - the ring is bucketed to GAUGE_STEPS positions, so it advances at most
+       24 times across a whole grow cycle instead of ~360 (6s x 60fps);
+     - the number is ceil()'d to whole seconds, so it changes exactly once a
+       second by construction, whatever the frame rate is.
+
+   ceil() rather than round() so the countdown reaches "1s" and then the item
+   is ready — it never displays "0s" while the player still has to wait, which
+   is the one number a countdown must not lie about.
+
+   `npm run churn --gauges` is the instrument that proves this, and it is the
+   only one that can: `npm run shots` freezes the clock, so a ring repainting
+   60x/second is byte-identical in a still frame.
+
+   MEASURED as two real builds, not as an estimate — the change guards below
+   were removed, the run repeated, and the guards restored. Standing in the
+   meadow with all 11 gauges live and both bots running, over 8s of wall clock:
+
+                      BEFORE (unquantised)   AFTER (this code)
+     ring --fill            1,982                  232
+     countdown text         1,982                   87
+     CONTENT TOTAL          3,964  (496/sec)       319  (40/sec)   12.4x fewer
+
+   Shell transform writes are counted SEPARATELY (497 before, 467 after — i.e.
+   unchanged, as they must be) and are NOT churn: a sheep wanders, so its ring
+   genuinely has to move with it. Crop rings are static and settle to zero,
+   which is what `npm run probe` asserts. Adding the two streams together would
+   hide which one the quantiser is answerable for.
+
+   One trap for whoever measures this next: counting ring writes with a
+   MutationObserver UNDER-REPORTS them to the point of uselessness. Chrome
+   emits no attribute record when a style property is set to an identical
+   serialized value, so the unquantised build scored the same 233 records as
+   this one while really calling setProperty 60x/second per gauge. The tool
+   wraps setProperty and counts CALLS for exactly this reason. */
+const GAUGE_STEPS=24;
+
+function updateGauges(){
+  if(!S) return;
+  for(const a of gauges){
+    const r=a.read();
+    // 4B.4 — read() returning null means "this object needs no readout":
+    // already ready, not yet unlocked, or its 3D mesh does not exist yet.
+    // Hand visibility back to the projection loop the same way refreshAnchors()
+    // does, by clearing `shown` so it re-decides on the next frame.
+    const off=!r;
+    if(off!==a.gone){
+      a.gone=off;
+      if(off){ a.shell.style.display='none'; a.shown=false; }
+      else { a.shown=null; a.sx=NaN; }
+    }
+    if(off) continue;
+    // QUANTISE, then compare, then write. The comparison is against the
+    // displayed value, never against the float.
+    const step=Math.round(Math.max(0,Math.min(1,r.p))*GAUGE_STEPS);
+    if(step!==a._step){
+      a._step=step;
+      a.gauge.style.setProperty('--fill',(step*(100/GAUGE_STEPS)).toFixed(2)+'%');
+    }
+    // Clamped at 1: a crop with a Sun Boost running can have under a second
+    // left, and "0s" on something you cannot yet collect reads as a bug.
+    const secs=Math.max(1,Math.ceil(r.s));
+    if(secs!==a._secs){ a._secs=secs; a.gtext.textContent=secs+'s'; }
+  }
+}
+
 /* Project every anchor to screen space. Called once per frame from tick(). */
 function updateAnchors(){
   if(!anchors.length||!camera) return;
@@ -1662,7 +1841,11 @@ function updateAnchors(){
     // BACKLOG 4.6 — proximity. Squared distance, so this costs no sqrt per
     // anchor per frame, and toggled only on change so a walk across the map
     // does not thrash classList.
-    if(fp){
+    // 4B — proximity is a BUTTON concept. "Too far to press" is meaningless
+    // for a readout: nothing is pressed, and how long until a sheep is ready
+    // is exactly the thing worth knowing from across the meadow. A gauge is
+    // therefore never near/far and never carries the .far fade.
+    if(fp && !a.isGauge){
       const dx=p.x-fp.x, dz=p.z-fp.z;
       const near=(dx*dx+dz*dz)<=ANCHOR_REACH*ANCHOR_REACH;
       // sx=NaN forces one reposition: crossing the range boundary switches the
@@ -1688,13 +1871,44 @@ function updateAnchors(){
     const lo=anchorLeftLimit+hw, hi=Math.max(anchorLeftLimit+hw,anchorRightLimit-hw);
     let lift=sy-st*ANCHOR_STACK, px=sx, vis=!behind;
 
-    if(a.near!==false){
+    // 4B — a gauge is NEVER repositioned, so it takes the honest-or-hidden
+    // branch below whatever the distance is. Clamping identifies a button with
+    // the object it belongs to loosely enough to be useful; for a readout it
+    // would be a lie, because a ring slid down to clear the task card would be
+    // reporting one sheep's timer while sitting over a different sheep. If it
+    // cannot be drawn in its true place it is not drawn.
+    if(!a.isGauge && a.near!==false){
       // IN REACH — this is the button the player is trying to press, so keep it
       // on screen and clear of the HUD even when its object projects awkwardly.
       lift=Math.max(floor,lift);
       px=Math.min(Math.max(px,lo),hi);
       vis=vis && sx>-ANCHOR_MARGIN && sx<w+ANCHOR_MARGIN
               && sy>-ANCHOR_MARGIN && sy<h+ANCHOR_MARGIN;
+    }else if(a.isGauge){
+      // 4B — a readout is culled by the task card and the screen edges, but
+      // NOT by the edge rails.
+      //
+      // The rails are narrow VERTICAL strips at z-index 21 while #worldAnchors
+      // is 15, so a ring that drifts under one is ALREADY occluded by paint
+      // order. Culling it as well buys nothing the stacking context was not
+      // giving for free, and it costs every ring that was merely NEAR a rail
+      // without being behind it — the rail limits are horizontal-only and take
+      // no account of how tall the rail actually is. For a control that trade
+      // is still right (a half-hidden button invites a tap on the wrong
+      // object, which is why 4.6 keeps it); for a readout it is backwards,
+      // because a timer you cannot see is the complaint this phase exists to
+      // fix.
+      //
+      // The task-card floor stays: that card is a full-width opaque block, so
+      // a ring beneath it is not partly readable, it is simply gone.
+      //
+      // Honest note on scope — this was NOT what hid the outer beds' rings in
+      // the first 4B captures. Dumping the live gauge state showed those beds'
+      // CENTRES projecting off-screen entirely at the farm-centre camera
+      // (plot0 at px=-40, plot2 past px=434 on a 393px viewport), which no
+      // bounds rule can rescue. The rail change is a real improvement for a
+      // crop or sheep near a screen edge; it fixed nothing in that screenshot.
+      vis=vis && lift>=floor && lift<h && px>=hw && px<=w-hw;
     }else{
       // OUT OF REACH — never repositioned, and never drawn anywhere it would
       // overlap the task card, the phone's status bar or the edge rails.
@@ -1771,6 +1985,11 @@ function pressAnchor(a){
 function refreshAnchors(){
   if(!anchors.length||!S) return;
   for(const a of anchors){
+    // 4B — a gauge has no label, cost or affordability, and its visibility is
+    // owned by updateGauges() on the frame clock. Touching a.gone here would
+    // fight that owner: renderHeader() fires on every coin earned, so the two
+    // would race and the ring would flicker every time the Harvest Bot paid out.
+    if(a.isGauge) continue;
     const gone=!!(a.hidden&&a.hidden());
     if(gone!==a.gone){
       a.gone=gone;
@@ -1884,9 +2103,52 @@ function buildAnchors(){
   itemAnchor(MEADOW_SHOP,'auto', {icon:'🤖',up:true,group:'meadow',stack:3,
     pos:()=>({x:meadowHub.x,y:5.0,z:meadowHub.z})});
 
+  /* --- 4B.1 / 4B.2: the "how long until…?" readouts ---
+
+     One gauge per POSSIBLE crop bed and per POSSIBLE sheep, built once at boot
+     and retired by read() rather than created and destroyed as things unlock.
+     Both caps are fixed and small (6 beds, 5 sheep), and creating DOM nodes on
+     the frame clock is the failure mode BACKLOG 3.6 was about — a gauge that
+     is not needed costs one null check per frame and nothing else.
+
+     Anchored to the object itself, not to the zone hub the upgrade buttons
+     share, because the whole question is "how long until THIS one" — a sheep
+     wanders, so its ring wanders with it. */
+  for(let i=0;i<FARM.maxPlots;i++){
+    addGauge({
+      key:'grow.plot'+i,
+      pos:()=>{ const p=plotWorldPos(i); return {x:p.x,y:2.6,z:p.z}; },
+      read:()=>{
+        if(i>=S.unlockedPlots) return null;      // bed not bought yet
+        const p=S.plots[i];
+        if(!p||p.ready) return null;             // 4B.4 — the ground ring says it
+        return {p:p.progress, s:(1-p.progress)*growTime()};
+      }
+    });
+  }
+  for(let i=0;i<MEADOW.costs.sheep.max;i++){
+    addGauge({
+      key:'grow.sheep'+i,
+      // sheep3D can be shorter than S.sheep — a sheep exists in state before
+      // its mesh is built. read() culls that case, and this stays defensive
+      // anyway because pos() is on the per-frame path.
+      pos:()=>{ const m=sheep3D[i];
+                return m?{x:m.position.x,y:2.8,z:m.position.z}:{x:0,y:0,z:0}; },
+      read:()=>{
+        if(!S.meadowOpen) return null;
+        const sh=S.sheep[i], m=sheep3D[i];
+        if(!sh||!m||sh.ready) return null;       // 4B.4 — the marker says it
+        return {p:sh.progress, s:(1-sh.progress)*woolTime()};
+      }
+    });
+  }
+
   // Resolve how tall each stack group is, so the card-collision floor can keep
   // a whole group below the card instead of flattening it. Hidden members still
   // count, which keeps the layout stable as items are bought and retire.
+  // A gauge is its own group of one, so its floor works out as
+  // anchorTopLimit + ANCHOR_STACK — which is exactly right, because the shell
+  // is translated -100% and ANCHOR_STACK (34px) is the gauge's own height.
   const gmax={};
   anchors.forEach(a=>{ const g=a.group||a.key; gmax[g]=Math.max(gmax[g]||0,a.stack||0); });
   anchors.forEach(a=>{ a.stackMax=gmax[a.group||a.key]; });
@@ -2581,6 +2843,12 @@ function tick(nowMs){
     updateCamera(dt);
     updateWorldLife(dt,elapsed);
     updateHUDWorld();
+    // 4B — BEFORE updateAnchors(), not after. updateGauges() owns whether a
+    // readout exists at all this frame (a crop that just became ready must
+    // lose its ring on the SAME frame the ground ring appears, or the two are
+    // briefly drawn together, which is the doubling 4B.4 forbids). The
+    // projection loop then skips whatever it retired, in the same pass.
+    updateGauges();
     // After updateCamera(), so anchors project against the camera the player
     // is about to see rather than lagging it by one frame — a button trailing
     // its object is the exact artifact `npm run shots` is blind to.
