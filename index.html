@@ -75,6 +75,17 @@ html,body{margin:0;height:100%;overflow:hidden;
   display:flex;align-items:center;justify-content:center;font-size:15px;
   box-shadow:inset 0 -2px 0 rgba(0,0,0,0.12);}
 #lvlText{font-size:12.5px;line-height:1;}
+/* SOUND — the mute toggle rides inside #lvlPill, which already carries
+   transform:scale(var(--ui)) with transform-origin:top left. So the button
+   INHERITS the UI scale from its parent and its own sizes stay plain px:
+   restating calc(26px * var(--ui)) here would multiply the factor twice and
+   make the button balloon on a tablet (rule 18). It deliberately touches NO
+   env(safe-area-inset-*) — an inset is a physical device distance and must
+   never be scaled (5A.4). */
+#muteBtn{width:26px;height:26px;flex:0 0 auto;border:0;padding:0;margin-left:2px;
+  border-radius:50%;background:rgba(0,0,0,0.06);font-size:14px;line-height:1;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;}
 /* The level's progress bar used to live here, inside the top-left pill. It
    moved into #taskPanel (BACKLOG 3.3) so the bar and the tasks it measures are
    one card. The pill keeps level + avatar, which is what ART-REFERENCE asks
@@ -161,7 +172,11 @@ html,body{margin:0;height:100%;overflow:hidden;
    whether its title wraps or not. */
 .task .tTitle{font-size:calc(11px * var(--ui));font-weight:800;line-height:1.15;display:flex;
   gap:calc(4px * var(--ui));align-items:flex-start;
-  min-height:2.2em;overflow:hidden;}
+  /* 2.4em, not 2.2em. Two lines at line-height 1.15 need ~2.3em, so 2.2em was
+     0.1em short and shaved the descenders off line two — measured, scrollHeight
+     vs clientHeight: 28 vs 25 on iPhone 393 and iPhone Max 430, 39 vs 37 on
+     iPad 820. Not a scale change; the em unit already tracks --ui. */
+  min-height:2.4em;overflow:hidden;}
 .task .tTitle span:last-child{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
   overflow:hidden;}
 .task .tTitle span:first-child{flex:0 0 auto;font-size:calc(12px * var(--ui));line-height:1.1;}
@@ -312,15 +327,22 @@ html,body{margin:0;height:100%;overflow:hidden;
    definition of name/cost/buy/maxed and are not shop UI. */
 
 /* ---------- joystick ---------- */
-#joyRing{position:absolute;width:98px;height:98px;border-radius:50%;z-index:30;display:none;
+/* 5A.7 — the joystick is the MOST-TOUCHED control in the game and it was the
+   one thing Phase 5A missed: the task chips scaled 10.5px -> 15.225px on an
+   iPad while the ring and the nub stayed a flat 98/46 px. JOY_R (the JS
+   max-travel radius) is derived from the SAME factor in applyUIScale(), the
+   way ANCHOR_STACK is — scale the ring in CSS alone and the thumb stops
+   matching the ring it is supposed to be dragging inside. */
+#joyRing{position:absolute;width:calc(98px * var(--ui));height:calc(98px * var(--ui));border-radius:50%;z-index:30;display:none;
   background:rgba(255,255,255,0.20);border:3px solid rgba(255,255,255,0.8);
   box-shadow:0 3px 12px rgba(0,0,0,0.14);pointer-events:none;transform:translate(-50%,-50%);}
-#joyNub{position:absolute;width:46px;height:46px;border-radius:50%;z-index:31;display:none;
+#joyNub{position:absolute;width:calc(46px * var(--ui));height:calc(46px * var(--ui));border-radius:50%;z-index:31;display:none;
   background:radial-gradient(circle at 34% 28%,#fff,#e9e9e9);
   border:2px solid rgba(255,255,255,.95);box-shadow:0 3px 8px rgba(0,0,0,0.25);
   pointer-events:none;transform:translate(-50%,-50%);}
-#farmerBubble{position:absolute;z-index:32;background:#fff;border-radius:11px;padding:3px 10px;
-  font-size:11px;font-weight:800;box-shadow:0 3px 0 rgba(0,0,0,.14);white-space:nowrap;
+/* 5A.7 — measured 120x26px at 11px on BOTH iPhone and iPad before this. */
+#farmerBubble{position:absolute;z-index:32;background:#fff;border-radius:calc(11px * var(--ui));padding:calc(3px * var(--ui)) calc(10px * var(--ui));
+  font-size:calc(11px * var(--ui));font-weight:800;box-shadow:0 3px 0 rgba(0,0,0,.14);white-space:nowrap;
   opacity:0;transition:opacity .3s;transform:translate(-50%,-100%);pointer-events:none;}
 #farmerBubble.show{opacity:1;}
 
@@ -455,40 +477,46 @@ html,body{margin:0;height:100%;overflow:hidden;
   color:var(--text);line-height:1;}
 
 /* ---------- fx / overlays ---------- */
-.flyCoin{position:fixed;width:26px;height:26px;pointer-events:none;z-index:60;transition:all .6s cubic-bezier(.5,-0.2,.6,1);}
+/* 5A.7 — the fx and modal layers. Every size below was a hard-coded px, all of
+   it player-facing, and none of it inside a transform:scale() parent, so Phase
+   5A's --ui simply never reached it: on an 820px tablet a modal capped at
+   330px reads as a phone dialog dropped on a tablet, and the "+45" coin pop is
+   a third of the size it is on a phone relative to the screen. --ui is 1.0000
+   on every phone, so none of this moves a pixel there. */
+.flyCoin{position:fixed;width:calc(26px * var(--ui));height:calc(26px * var(--ui));pointer-events:none;z-index:60;transition:all .6s cubic-bezier(.5,-0.2,.6,1);}
 .popText{position:fixed;pointer-events:none;z-index:59;font-weight:800;color:#fff;
-  text-shadow:0 2px 0 rgba(0,0,0,.3);animation:popUp .8s forwards;font-size:17px;}
+  text-shadow:0 2px 0 rgba(0,0,0,.3);animation:popUp .8s forwards;font-size:calc(17px * var(--ui));}
 @keyframes popUp{0%{opacity:1;transform:translateY(0) scale(1);}100%{opacity:0;transform:translateY(-48px) scale(1.3);}}
-.spark{position:fixed;pointer-events:none;z-index:58;font-size:13px;animation:sparkFly .6s forwards;}
+.spark{position:fixed;pointer-events:none;z-index:58;font-size:calc(13px * var(--ui));animation:sparkFly .6s forwards;}
 @keyframes sparkFly{0%{opacity:1;transform:translate(0,0) scale(1);}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.4);}}
 .fireworkDot{position:fixed;width:7px;height:7px;border-radius:50%;pointer-events:none;z-index:98;}
 .flash{position:fixed;inset:0;background:#fff;z-index:97;pointer-events:none;animation:flashFade .5s forwards;}
 @keyframes flashFade{from{opacity:.65;}to{opacity:0;}}
 .overlay{position:fixed;inset:0;background:rgba(90,66,34,0.45);backdrop-filter:blur(2px);
   display:flex;align-items:center;justify-content:center;z-index:100;}
-.panel{background:var(--card);border-radius:24px;padding:22px 20px;max-width:330px;width:88%;
+.panel{background:var(--card);border-radius:calc(24px * var(--ui));padding:calc(22px * var(--ui)) calc(20px * var(--ui));max-width:calc(330px * var(--ui));width:88%;
   text-align:center;box-shadow:0 10px 0 rgba(0,0,0,.15);animation:bounceIn .45s cubic-bezier(.34,1.56,.64,1);}
 @keyframes bounceIn{from{transform:scale(.6);opacity:0;}to{transform:scale(1);opacity:1;}}
-.panel h1{margin:0 0 2px;font-size:22px;}
-.panel h2{margin:0 0 12px;font-size:12.5px;color:var(--text2);font-weight:800;}
+.panel h1{margin:0 0 2px;font-size:calc(22px * var(--ui));}
+.panel h2{margin:0 0 12px;font-size:calc(12.5px * var(--ui));color:var(--text2);font-weight:800;}
 .bigBtn{background:linear-gradient(var(--green),var(--green2));color:#fff;border:none;
-  border-radius:15px;padding:11px 22px;font-size:14.5px;font-weight:800;font-family:inherit;cursor:pointer;
+  border-radius:calc(15px * var(--ui));padding:calc(11px * var(--ui)) calc(22px * var(--ui));font-size:calc(14.5px * var(--ui));font-weight:800;font-family:inherit;cursor:pointer;
   box-shadow:0 4px 0 #2f7a26, inset 0 2px 0 rgba(255,255,255,.3);width:100%;margin-top:6px;}
 .bigBtn:active{transform:translateY(2px);}
 .bigBtn.adBtn{background:linear-gradient(#b47ff0,var(--purple));box-shadow:0 4px 0 #7a4fb0, inset 0 2px 0 rgba(255,255,255,.3);}
-.softBtn{background:var(--cream);color:var(--text);border:none;border-radius:13px;padding:9px 16px;
-  font-size:12px;font-weight:800;font-family:inherit;cursor:pointer;margin-top:8px;box-shadow:var(--shadow);}
-.statRow{display:flex;justify-content:space-between;font-weight:800;font-size:12px;color:var(--text2);padding:3px 6px;}
+.softBtn{background:var(--cream);color:var(--text);border:none;border-radius:calc(13px * var(--ui));padding:calc(9px * var(--ui)) calc(16px * var(--ui));
+  font-size:calc(12px * var(--ui));font-weight:800;font-family:inherit;cursor:pointer;margin-top:8px;box-shadow:var(--shadow);}
+.statRow{display:flex;justify-content:space-between;font-weight:800;font-size:calc(12px * var(--ui));color:var(--text2);padding:calc(3px * var(--ui)) calc(6px * var(--ui));}
 .statRow b{color:var(--text);}
 #adScreen{position:fixed;inset:0;background:#1d212a;z-index:200;display:none;
   flex-direction:column;align-items:center;justify-content:center;color:#fff;text-align:center;padding:20px;}
-#adScreen .adBox{background:#2a2f3a;border-radius:20px;padding:28px 24px;max-width:310px;width:90%;}
-#adScreen h2{margin:0 0 6px;font-size:17px;color:#ffd44d;}
-#adScreen p{margin:0 0 14px;font-size:11.5px;color:#a8b1c2;font-weight:600;}
-#adCountRing{width:72px;height:72px;margin:0 auto 8px;border-radius:50%;
-  display:flex;align-items:center;justify-content:center;font-size:25px;font-weight:800;
+#adScreen .adBox{background:#2a2f3a;border-radius:calc(20px * var(--ui));padding:calc(28px * var(--ui)) calc(24px * var(--ui));max-width:calc(310px * var(--ui));width:90%;}
+#adScreen h2{margin:0 0 6px;font-size:calc(17px * var(--ui));color:#ffd44d;}
+#adScreen p{margin:0 0 14px;font-size:calc(11.5px * var(--ui));color:#a8b1c2;font-weight:600;}
+#adCountRing{width:calc(72px * var(--ui));height:calc(72px * var(--ui));margin:0 auto 8px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:calc(25px * var(--ui));font-weight:800;
   background:conic-gradient(var(--sun) var(--pct,0%), #444b5a 0);}
-#adCountRing span{background:#2a2f3a;width:56px;height:56px;border-radius:50%;
+#adCountRing span{background:#2a2f3a;width:calc(56px * var(--ui));height:calc(56px * var(--ui));border-radius:50%;
   display:flex;align-items:center;justify-content:center;}
 </style>
 </head>
@@ -508,13 +536,14 @@ html,body{margin:0;height:100%;overflow:hidden;
     <div class="pill" id="lvlPill">
       <div id="lvlAvatar">🌾</div>
       <div><div id="lvlText">Farm Lv 1</div></div>
+      <button id="muteBtn" aria-label="Sound on">🔊</button>
     </div>
     <div class="pill" id="coinPill">
       <svg viewBox="0 0 24 24" width="21" height="21"><circle cx="12" cy="12" r="10" fill="#e08c12"/><circle cx="12" cy="12" r="7.6" fill="#ffd44d"/><text x="12" y="16" text-anchor="middle" font-size="10" font-weight="bold" fill="#c07d00">$</text></svg>
       <span id="coinCount">0</span>
     </div>
   </div>
-  <div id="verTag">v5.2</div>
+  <div id="verTag">v5.3</div>
   <div id="noWebGL">
     <div class="emoji">🌾</div>
     <h1>This browser can't show the farm</h1>
@@ -588,28 +617,57 @@ const TASK_CHAIN = [
   { id:'t1',  icon:'🥕', title:'Harvest 5 crops',            type:'counter', ev:'harvest', n:5,   rMin:1.0 },
   { id:'t2',  icon:'🟫', title:'Own 3 plots',                type:'state',   now:s=>s.unlockedPlots, goal:3, check:s=>s.unlockedPlots>=3, rMin:1.2 },
   { id:'t3',  icon:'💰', title:'Collect 250 coins',          type:'counter', ev:'coins',   n:250, rMin:1.2 },
-  { id:'t4',  icon:'🍅', title:'Unlock Tomatoes',            type:'state',   check:s=>s.cropTier>=1, rMin:1.5 },
+  { id:'t4',  icon:'🍅', title:'Better Seeds — Tomatoes',    type:'state',   check:s=>s.cropTier>=1, rMin:1.5 },
   { id:'t5',  icon:'🧺', title:'Harvest 15 crops',           type:'counter', ev:'harvest', n:15,  rMin:1.5 },
-  { id:'t6',  icon:'📺', title:'Watch 1 ad reward',          type:'counter', ev:'ad',      n:1,   rMin:2.0 },
+  { id:'t6',  icon:'📺', title:'Watch 1 ad',                 type:'counter', ev:'ad',      n:1,   rMin:2.0 },
   { id:'t7',  icon:'🟫', title:'Own 4 plots',                type:'state',   now:s=>s.unlockedPlots, goal:4, check:s=>s.unlockedPlots>=4, rMin:1.5 },
   { id:'t8',  icon:'⏱️', title:'Buy Faster Growth Lv 2',     type:'state',   now:s=>s.upgLevels.speed, goal:2, check:s=>s.upgLevels.speed>=2, rMin:1.5 },
   { id:'t9',  icon:'💰', title:'Collect 1,800 coins',        type:'counter', ev:'coins',   n:1800, rMin:1.8 },
-  { id:'t10', icon:'🌻', title:'Crop upgrade 2 — Sunflowers', type:'state',  now:s=>s.cropTier, goal:2, check:s=>s.cropTier>=2, rMin:2.0 },
+  { id:'t10', icon:'🌻', title:'Better Seeds — Sunflowers', type:'state',  now:s=>s.cropTier, goal:2, check:s=>s.cropTier>=2, rMin:2.0 },
   { id:'t11', icon:'🤖', title:'Buy the Harvest Bot',        type:'state',   check:s=>s.upgLevels.auto>=1, rMin:2.0 },
-  { id:'t12', icon:'📺', title:'Watch 2 ad rewards',         type:'counter', ev:'ad',      n:2,   rMin:2.5 },
+  { id:'t12', icon:'📺', title:'Watch 2 ads',                type:'counter', ev:'ad',      n:2,   rMin:2.5 },
   { id:'t13', icon:'🟫', title:'Fill the farm — 6 plots',    type:'state',   now:s=>s.unlockedPlots, goal:6, check:s=>s.unlockedPlots>=6, rMin:2.5 },
   { id:'t14', icon:'💰', title:'Collect 7,000 coins',        type:'counter', ev:'coins',   n:7000, rMin:2.5 },
   { id:'t15', icon:'🐑', title:'Unlock the Meadow!',         type:'state',   check:s=>s.meadowOpen, rMin:3.0 },
   { id:'t16', icon:'🐑', title:'Buy your first sheep',       type:'state',   check:s=>s.sheep.length>=1, rMin:2.0 },
   { id:'t17', icon:'🧶', title:'Collect 10 wool',            type:'counter', ev:'wool',    n:10,  rMin:2.0 },
   { id:'t18', icon:'🐑', title:'Grow the flock — 3 sheep',   type:'state',   now:s=>s.sheep.length, goal:3, check:s=>s.sheep.length>=3, rMin:2.5 },
-  { id:'t19', icon:'📺', title:'Watch 3 ad rewards',         type:'counter', ev:'ad',      n:3,   rMin:3.0 },
+  { id:'t19', icon:'📺', title:'Watch 3 ads',                type:'counter', ev:'ad',      n:3,   rMin:3.0 },
   { id:'t20', icon:'🧶', title:'Collect 30 wool',            type:'counter', ev:'wool',    n:30,  rMin:2.5 },
   { id:'t21', icon:'✨', title:'Upgrade Wool Quality',       type:'state',   check:s=>s.meadowLv.wool>=1, rMin:2.5 },
   { id:'t22', icon:'💰', title:'Collect 30,000 coins',       type:'counter', ev:'coins',   n:30000, rMin:3.0 },
   { id:'t23', icon:'🐑', title:'Full flock — 5 sheep',       type:'state',   now:s=>s.sheep.length, goal:5, check:s=>s.sheep.length>=5, rMin:3.0 },
   { id:'t24', icon:'🧺', title:'Harvest 90 crops',           type:'counter', ev:'harvest', n:90,  rMin:3.0 }
 ];
+
+/* ---------- P6.2 — where a task is ACHIEVED ----------
+
+   Task id -> the name of a place in the world. Tapping a chip pans the camera
+   there (P6.1), which answers the one question the chip cannot: "…and where do
+   I do that?".
+
+   THREE TASKS ARE DELIBERATELY ABSENT: t6, t12 and t19 are the ad tasks, and
+   the ad buttons live in the #rightRail DOM, not in the 3D world. There is no
+   place to pan to, so there is no ENTRY — not a null, not a zero coordinate.
+   "Nowhere" must not be representable as a place: a {x:0,z:0} would pan to the
+   dead centre of the map and read as a bug, and a null would make every reader
+   of this map handle a case that has no meaning. Absence is the honest
+   encoding, and panTargetFor() returns null for anything it cannot name.
+   21 entries, therefore, not 24.
+
+   The values are ANCHOR KEYS wherever the thing being bought is a world button,
+   so the pan and the button can never drift apart. `farm.beds` is the one
+   exception — the crop beds carry no purchase button once they are unlocked, so
+   it is resolved from ZONES[0] rather than hard-coded, which keeps it in the
+   same coordinate system as everything else instead of inventing a new one. */
+const TASK_PAN={
+  t1:'farm.beds',   t2:'plot',         t3:'farm.beds',    t4:'farm.seeds',
+  t5:'farm.beds',   /* t6 = ad */      t7:'plot',         t8:'farm.speed',
+  t9:'farm.beds',   t10:'farm.seeds',  t11:'farm.auto',   /* t12 = ad */
+  t13:'plot',       t14:'farm.beds',   t15:'meadow.open', t16:'meadow.sheep',
+  t17:'meadow.sheep', t18:'meadow.sheep', /* t19 = ad */  t20:'meadow.sheep',
+  t21:'meadow.wool', t22:'farm.beds',  t23:'meadow.sheep', t24:'farm.beds'
+};
 // A level is one authored SET of tasks (decision D1). Level 1's set is the
 // 24-task chain above, used UNCHANGED (decision D2) — that is the whole reason
 // this option was chosen over re-authoring: the chain is already economy-tuned
@@ -728,6 +786,14 @@ function newState(){
     // deliberately NOT under a settings object, since nothing else in the game
     // is a preference and one would have to be invented to hold it.
     zoom:ZOOM_DEF,
+    // SOUND — a FLAT field beside zoom, for exactly the reason zoom is flat:
+    // nothing else in the game is a preference and inventing a settings object
+    // to hold one boolean would be ceremony. Migration is free, because load()
+    // does Object.assign(newState(), raw) — a save written before sound existed
+    // simply takes this default. DEFAULT AUDIBLE: a game that defaults silent
+    // reads as a game with no sound at all, and the browser's autoplay policy
+    // already guarantees a silent page load until the first tap.
+    mute:false,
     lastSeen:now()
   };
 }
@@ -809,7 +875,7 @@ function claimTask(slot,mult){
   popText(innerWidth/2, 132, '+'+fmt(reward)+' 💰', '#f5a623');
   bump($('#coinPill'));
   farmerCheer();
-  chirp(523,'triangle',0.1); setTimeout(()=>chirp(784,'triangle',0.1),120);
+  sfx('claim');
   // Refill the claimed slot from the CURRENT set only. If the set has nothing
   // left to reveal, the slot is removed instead of being padded from the next
   // set: the player sees 2 chips, then 1, then the level ticks (BACKLOG 2.3
@@ -850,7 +916,7 @@ function farmLevelUp(){
   S.taskIdx = openWindow(S.setIdx);
   S.setNext = S.taskIdx.length;
   fireworks(); flash();
-  chirp(659,'triangle',0.1); setTimeout(()=>chirp(880,'triangle',0.11),140); setTimeout(()=>chirp(1046,'triangle',0.12),280);
+  sfx('levelUp');
   const bonus=Math.max(50,Math.round(eps()*120/10)*10);
   const ov=document.createElement('div'); ov.className='overlay';
   ov.innerHTML=`<div class="panel">
@@ -862,9 +928,9 @@ function farmLevelUp(){
     <button class="softBtn" id="lvlOk">Collect +${fmt(bonus)}</button>
   </div>`;
   document.body.appendChild(ov);
-  const grant=m=>{ov.remove();S.coins+=bonus*m;taskEvent('coins',bonus*m);bump($('#coinPill'));renderAll();save();};
-  ov.querySelector('#lvlX2').addEventListener('pointerdown',()=>AdManager.show(()=>{registerAdWatch();grant(2);}));
-  ov.querySelector('#lvlOk').addEventListener('pointerdown',()=>grant(1));
+  const grant=m=>{ov.remove();S.coins+=bonus*m;taskEvent('coins',bonus*m);bump($('#coinPill'));sfx('coinPour');renderAll();save();};
+  ov.querySelector('#lvlX2').addEventListener('pointerdown',()=>{sfx('tap');AdManager.show(()=>{registerAdWatch();grant(2);});});
+  ov.querySelector('#lvlOk').addEventListener('pointerdown',()=>{sfx('tap');grant(1);});
 }
 
 /* ---------- ads ---------- */
@@ -892,25 +958,34 @@ function adReady(key){
   return cooled&&underCap&&relevant;
 }
 function tryAdReward(key,btn){
-  if(!adReady(key)){shake(btn);return;}
+  if(!adReady(key)){shake(btn);sfx('denied');return;}
+  // The tap sound belongs on the path that actually proceeds. Playing it in
+  // the button's own listener would stack tap+denied on every press of an ad
+  // that is still cooling down.
+  sfx('tap');
   AdManager.show(()=>{
     S.adLast[key]=now();S.adCount[key]=(S.adCount[key]||0)+1;
     registerAdWatch();
     if(key==='rush'){const amt=rushAmount();S.coins+=amt;taskEvent('coins',amt);
       coinFountain(innerWidth/2,innerHeight/2,12);
-      popText(innerWidth/2,innerHeight/2,'+'+fmt(amt)+' 💰','#f5a623');bump($('#coinPill'));}
-    if(key==='boost'){S.boostUntil=now()+5*60*1000;}
-    if(key==='bot'){S.superBotUntil=now()+3*60*1000;}
+      popText(innerWidth/2,innerHeight/2,'+'+fmt(amt)+' 💰','#f5a623');bump($('#coinPill'));
+      // ONE pour for the whole fountain — coinFountain() schedules 12 flights
+      // 70ms apart and a sound per flight would be a rattle.
+      sfx('coinPour');}
+    if(key==='boost'){S.boostUntil=now()+5*60*1000;sfx('boostStart');}
+    if(key==='bot'){S.superBotUntil=now()+3*60*1000;sfx('boostStart');}
     if(key==='wool'){
       // Used to only set ready=true, so it made every sheep FULL of wool and
       // then left it there: taskEvent('wool') never fired and "Collect N wool"
       // never moved even though the ad was watched. It says "All wool", so it
       // now actually banks it, then keeps collecting for 3 minutes.
       S.sheep.forEach(sh=>{sh.progress=1;sh.ready=true;});
-      for(let i=0;i<S.sheep.length;i++) collectWool(i);
+      // silent:true — this loop is synchronous, so with 10 sheep it is 10
+      // calls inside one millisecond. One woolAll covers the whole flock.
+      for(let i=0;i<S.sheep.length;i++) collectWool(i,true);
       S.woolBotUntil=now()+3*60*1000;
+      sfx('woolAll');
     }
-    chirp(523,'triangle',0.1);setTimeout(()=>chirp(784,'triangle',0.1),120);
     renderAll();save();
   });
 }
@@ -970,7 +1045,15 @@ function load(){
   return false;
 }
 setInterval(save,5000);
-document.addEventListener('visibilitychange',()=>{if(document.hidden)save();});
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){
+    save();
+    // Backgrounding must not leave a tail of scheduled voices playing over
+    // whatever the player switched to. Both calls return promises, and an
+    // unhandled rejection is a pageerror — which fails shots, churn and probe.
+    if(AC) AC.suspend().catch(()=>{});
+  }else if(AC) AC.resume().catch(()=>{});
+});
 window.addEventListener('beforeunload',save);
 
 function offlineWelcome(){
@@ -994,9 +1077,9 @@ function offlineWelcome(){
   document.body.appendChild(ov);
   const grant=m=>{ov.remove();S.coins+=amount*m;taskEvent('coins',amount*m);
     coinFountain(innerWidth/2,innerHeight/2,10);
-    bump($('#coinPill'));chirp(660);setTimeout(()=>chirp(880),100);renderAll();save();};
-  ov.querySelector('#dblBtn').addEventListener('pointerdown',()=>AdManager.show(()=>{registerAdWatch();grant(2);}));
-  ov.querySelector('#colBtn').addEventListener('pointerdown',()=>grant(1));
+    bump($('#coinPill'));sfx('coinPour');renderAll();save();};
+  ov.querySelector('#dblBtn').addEventListener('pointerdown',()=>{sfx('tap');AdManager.show(()=>{registerAdWatch();grant(2);});});
+  ov.querySelector('#colBtn').addEventListener('pointerdown',()=>{sfx('tap');grant(1);});
 }
 
 /* =====================================================================
@@ -1141,7 +1224,12 @@ function makePine(){
 }
 function makeRock(){
   const g=new THREE.Group();
-  const r=new THREE.Mesh(geo('rock',()=>new THREE.DodecahedronGeometry(0.62,0)),M(0xb4bcc6));
+  /* 0xb4bcc6 was too pale to survive this scene's lighting: a 1.05 warm
+     directional plus the hemisphere bounce pushed it to near-white, and a
+     scattered white lump on green grass reads as a CLOUD, not as stone (the
+     PM mistook one for a cloud on an iPad screenshot). Darker and warmer —
+     a grey-brown that still lifts off the grass but can never be white. */
+  const r=new THREE.Mesh(geo('rock',()=>new THREE.DodecahedronGeometry(0.62,0)),M(0x8f8b86));
   r.position.y=0.44; r.rotation.set(Math.random(),Math.random(),Math.random()); r.castShadow=true;
   g.add(r); return g;
 }
@@ -1165,8 +1253,37 @@ function makeBarn(){
   const b=new THREE.Group();
   const body=new THREE.Mesh(new THREE.BoxGeometry(8,4.6,6),M(0xd0483c));
   body.position.y=2.3; body.castShadow=true; body.receiveShadow=true; b.add(body);
-  const roof=new THREE.Mesh(new THREE.CylinderGeometry(3.5,3.5,6.4,3,1,false),M(0x3f5d86));
-  roof.rotation.z=Math.PI/2; roof.rotation.y=Math.PI/2; roof.position.y=5.3; roof.castShadow=true; b.add(roof);
+  /* ROOF — a 3-segment cylinder is a triangular prism, and the OLD pair of
+     Euler rotations (z=PI/2 then y=PI/2) landed it on its side: apex pointing
+     at +X, one vertex buried 2.3 units inside the body, and the whole strip
+     from x=-4 to x=-1.75 left bare. It also could not have covered the barn
+     even upright — 2*3.5*sin60 = 6.06 wide against a body 8 wide.
+
+     Rebuilt from the two facts that decide the orientation, rather than by
+     trying rotations until it looks right:
+       - CylinderGeometry's axis is +Y and, at 3 segments, its cross-section
+         sits in XZ with one vertex at +Z.
+       - rotation.x=-PI/2 maps +Y -> -Z (the ridge runs front-to-back, along
+         the barn's DEPTH) and maps the +Z vertex to +Y (the apex points UP).
+         One rotation, so no Euler-order trap to get wrong a second time.
+     That puts the triangle in the XY plane, where it spans the barn's 8-unit
+     WIDTH and reads as a gable end above the door — which is where the door,
+     the X-braces and both windows already are (all at z~+3).
+
+     A 60-degree prism is fixed at height = 0.866 * width, which over an 8-wide
+     barn would be a 7-unit roof on a 4.6-unit body. scale.z squashes the
+     cross-section to a barn pitch. The sizes below are world-space numbers and
+     the radius is derived from them, so the coverage cannot drift. */
+  const ROOF_HW=4.2,   // half-width: eaves at x=+/-4.2, a 0.2 overhang past the body
+        ROOF_H=2.2,    // ridge height above the eaves
+        ROOF_L=6.6,    // length along Z: a 0.3 overhang past the body's 6 of depth
+        roofR=ROOF_HW/Math.sin(Math.PI/3),   // radius that yields ROOF_HW of half-width
+        roofSquash=ROOF_H/(1.5*roofR);       // 1.5*r is the prism's apex-to-base height
+  const roof=new THREE.Mesh(new THREE.CylinderGeometry(roofR,roofR,ROOF_L,3,1,false),M(0x3f5d86));
+  roof.rotation.x=-Math.PI/2; roof.scale.z=roofSquash;
+  // Base of the triangle sits exactly on the body's top face (y=4.6).
+  roof.position.y=4.6+0.5*roofR*roofSquash;
+  roof.castShadow=true; b.add(roof);
   const door=new THREE.Mesh(new THREE.BoxGeometry(2.4,3,0.2),M(0xfdf3e0));
   door.position.set(0,1.5,3.05); b.add(door);
   const cross=new THREE.Mesh(new THREE.BoxGeometry(2.6,0.28,0.12),M(0xd0483c));
@@ -1182,9 +1299,15 @@ function makeSilo(){
   const s=new THREE.Group();
   const body=new THREE.Mesh(new THREE.CylinderGeometry(1.5,1.5,6.5,16),M(0xc9d2da));
   body.position.y=3.25; body.castShadow=true; s.add(body);
-  for(let i=0;i<4;i++){
-    const ring=new THREE.Mesh(new THREE.TorusGeometry(1.52,0.07,6,18),M(0xa8b3bd));
-    ring.rotation.x=Math.PI/2; ring.position.y=1.2+i*1.5; s.add(ring);
+  /* The bands used to be 0xa8b3bd at tube 0.07 — four of them, and dark enough
+     against the pale 0xc9d2da body that the CONTRAST won over the silhouette:
+     the eye grouped it as four dark gaps separating pale discs, i.e. a stack of
+     tyres, not one banded cylinder. This is a contrast fix, not a restyle: the
+     body, the height, the dome and the radius are all unchanged. Three thinner
+     bands, only a shade off the body, so they read as seams on one tall tank. */
+  for(let i=0;i<3;i++){
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(1.505,0.03,6,18),M(0xbcc5ce));
+    ring.rotation.x=Math.PI/2; ring.position.y=1.5+i*1.8; s.add(ring);
   }
   const top=new THREE.Mesh(new THREE.SphereGeometry(1.5,16,10,0,Math.PI*2,0,Math.PI/2),M(0x8d9aa6));
   top.position.y=6.5; top.castShadow=true; s.add(top);
@@ -1588,14 +1711,39 @@ function buildWorld(){
      rather than a cloud. Turning it off still DEPTH-TESTS, so a cloud is
      correctly hidden behind nearer solid objects — only cloud-against-itself
      stops fighting. */
+  /* A cloud measured 19-35 CSS px on screen and only ever ONE is in frame, so
+     it was the same white, the same soft-shaded lump silhouette and the same
+     size class as a SHEEP — it read as an object standing in the world rather
+     than as weather. Four changes, in order of how much each one buys:
+
+     1. MeshBASICMaterial, not Lambert. This is the big one. Lambert lit each
+        cloud with the sun AND the hemisphere's green ground bounce, giving it
+        a bright top and a dim underside — which is precisely the cue that says
+        "solid thing sitting in the scene". A cosy low-poly cloud is a FLAT
+        white shape. Flat, not outlined: nothing else in this game has edges.
+     2. Lower opacity. White at 0.85 over pale grass was indistinguishable from
+        opaque, so the translucency cue added in 4C.3 was not actually being
+        paid out. It only works once (1) stops re-shading the sphere.
+     3. WIDE and LOW. Five spheres spread along local X, and a group scale that
+        is flat in Y. The wide flat silhouette is what separates "cloud" from
+        "animal" at a glance — more than size or alpha do. Overall size is NOT
+        increased; the owner has not approved growing them.
+     4. Per-cloud yaw and scale jitter, so the five stop being clones. Safe for
+        determinism: the shots harness seeds Math.random before any page script.
+
+     Deliberately NOT done: castShadow (a shadow-map pass over five more
+     objects on a phone, plus a dark blob sliding across the play field), and
+     the 9x7 segments are kept — the faceting was never the problem. */
   const CLOUD_SCALE=0.45;
   for(let i=0;i<5;i++){
     const c=new THREE.Group();
-    for(const p of [[0,0,0,2.1],[1.9,0.35,0.25,1.5],[-1.8,0.25,-0.15,1.4]]){
-      const m=new THREE.Mesh(new THREE.SphereGeometry(p[3],9,7),new THREE.MeshLambertMaterial({color:0xffffff,transparent:true,opacity:0.85,depthWrite:false}));
+    for(const p of [[-3.4,-0.05,0.10,1.25],[-1.8,0.20,-0.15,1.75],[0,0.30,0,2.1],[1.7,0.20,0.25,1.65],[3.2,-0.05,-0.10,1.2]]){
+      const m=new THREE.Mesh(new THREE.SphereGeometry(p[3],9,7),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.58,depthWrite:false}));
       m.position.set(p[0],p[1],p[2]); c.add(m);
     }
-    c.scale.setScalar(CLOUD_SCALE);
+    c.scale.set(CLOUD_SCALE,CLOUD_SCALE*0.62,CLOUD_SCALE);
+    c.rotation.y=Math.random()*Math.PI*2;
+    c.scale.multiplyScalar(0.8+Math.random()*0.5);
     c.position.set((Math.random()-0.5)*130, 24+Math.random()*7, (Math.random()-0.5)*80);
     c.userData.speed=0.7+Math.random()*0.8;
     scene.add(c); clouds3D.push(c);
@@ -1747,6 +1895,17 @@ const ANCHOR_MARGIN=64;
    writes it, from the ONE factor that also drives the CSS. */
 let ANCHOR_STACK=34;
 const ANCHOR_STACK_BASE=34;
+/* 5A.7 — the joystick's max thumb-travel radius, in the same units as
+   #joyRing's CSS size. Phase 5A scaled the chips, the HUD and the world
+   buttons and MISSED the joystick, which is the most-touched control in the
+   game: on an iPad the task chip font went 10.5px -> 15.225px while the ring
+   and the nub stayed a flat 98/46 px. Fixing the CSS alone is not enough —
+   the ring is calc(98px * var(--ui)) and the nub rides INSIDE it, so a flat
+   48 here would pin the thumb to the middle of a ring 45% wider. So this is
+   DERIVED from the same factor in applyUIScale(), never restated. Same
+   construction, and the same trap, as ANCHOR_STACK directly above. */
+let JOY_R=48;
+const JOY_R_BASE=48;
 /* How close the character must be to press a world button (BACKLOG 4.6 / D5).
 
    In world units. A crop bed is 8 across and beds sit 9.5 apart, so 11 means
@@ -1800,6 +1959,7 @@ function applyUIScale(){
   document.documentElement.style.setProperty('--ui',k.toFixed(4));
   // Kept equal to the CSS by construction, not by remembering. See .wGauge.
   ANCHOR_STACK=ANCHOR_STACK_BASE*k;
+  JOY_R=JOY_R_BASE*k;
 }
 
 let anchorTopLimit=0, anchorLeftLimit=0, anchorRightLimit=0;
@@ -2125,7 +2285,9 @@ function pressAnchor(a){
   // thing that actually stops the tap, but a rule can be overridden and this
   // cannot — and it keeps "can you press this" answerable in one place rather
   // than living only in a stylesheet.
-  if(a.near===false){ farmerSay('Too far — walk over!'); return; }
+  // This branch used to be entirely SILENT, which made "walk over" and "you're
+  // broke" indistinguishable without reading the bubble.
+  if(a.near===false){ farmerSay('Too far — walk over!'); sfx('tooFar'); return; }
   const cost=a.cost();
   if(S.coins<cost){
     if(!a._shakeT){
@@ -2135,10 +2297,16 @@ function pressAnchor(a){
       a._shakeT=setTimeout(()=>{ a._shakeT=0; },260);
     }
     farmerSay('Not enough coins!');
+    sfx('denied');
     return;
   }
   S.coins-=cost; a.act();
-  chirp(440); setTimeout(()=>chirp(560),90);
+  // Unlocking the meadow is the one purchase that opens a whole second
+  // business, so it overrides the ordinary buy sound with the rising sweep.
+  // Buying a sheep gets the buy sound plus a bleat a beat later — scheduled on
+  // the audio clock via sfx()'s delay, not on a setTimeout.
+  if(a.key==='meadow.open') sfx('unlock');
+  else { sfx('buy'); if(a.key==='meadow.sheep') sfx('baa',0.18); }
   renderAll(); save();
 }
 
@@ -2327,7 +2495,10 @@ function buildAnchors(){
    ===================================================================== */
 const WALK_SPEED=13;
 const joy={active:false,baseX:0,baseY:0,vx:0,vy:0,mag:0,startT:0,moved:false};
-const JOY_R=48;
+/* JOY_R — max thumb travel — is declared up with ANCHOR_STACK, next to the
+   applyUIScale() that writes it, because the 3D setup's resize() can call
+   applyUIScale() before execution ever reaches this line and a `let` read
+   from its temporal dead zone would throw on boot. */
 
 /* ---------- 4C.4: pinch to zoom ----------
    "Add a way for users to zoom in and zoom out, slightly, not all the way,
@@ -2400,6 +2571,14 @@ function initJoystick(){
     // touch recovers instead of the player having to restart the game.
     if(pointers.size===0){ pinch.active=false; pinch.locked=false; }
     pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    // P6.1 — a touch on the world means the player wants the controls back, so
+    // a live pan eases home. Deliberately BELOW the self-heal and the
+    // pointers.set() above, and it does not return: the ORDER is the invariant
+    // here, not the distance. A pan cancel that ran first would be one more
+    // statement standing between the first touch and the pinch bookkeeping,
+    // and an early `return` at the top of this handler is exactly what used to
+    // kill pinch silently.
+    cancelPan();
 
     if(pointers.size>=2){
       // Trap 1. Stand the joystick down — it is already running from finger one.
@@ -2551,15 +2730,121 @@ function camGoalFor(p){
   const k=getZoom();
   return camGoal.set(p.x, CAM_LOOK_Y+CAM_UP*k, p.z+CAM_BACK*k);
 }
+/* ---------- P6.1 — pan to where a task is achieved ----------
+
+   RULE 6 IS THE WHOLE DESIGN HERE, and the obvious implementation breaks it.
+   The tempting version moves camGoal to the task's location and lets the
+   existing 5.5/s position lerp carry the camera there while camera.lookAt()
+   tracks something else. Start and end would both measure 48.27°, and
+   `npm run measure` — which samples a SETTLED camera — would say the angle is
+   fine. But for every frame in between, position and look-at are no longer in
+   the fixed CAM_UP/CAM_BACK offset, so the camera SWINGS. That is a rotation,
+   and rule 6 has no "except briefly" clause.
+
+   So the pan eases ONE FOCUS POINT, and both camera.position (via camGoalFor)
+   and camera.lookAt are derived from that same point on every frame. The rig
+   translates rigidly; the elevation is atan(CAM_UP/CAM_BACK) on every frame by
+   construction, exactly as it is when following the farmer.
+
+   A PAN TARGET CARRIES x AND z ONLY, and the reason is sharp: anchor pos()
+   returns y values of 3.2 / 5.0 / 2.6 / 2.8, which are BUTTON LIFT HEIGHTS,
+   not ground. camGoalFor() adds CAM_UP*k on top of whatever y it is handed, so
+   feeding an anchor's y in would raise the camera WITHOUT moving it back —
+   which tilts it. The focus point's .y is never read by anything.
+
+   Rule 7's side: this is a JS-eased value advanced by dt inside the existing
+   frame loop. No CSS transition, no el.animate(), no setTimeout chain, and
+   nothing on the task chip itself — .task already has `animation: taskIn` and
+   renderTasks() writes transform/transition on the same node, so its transform
+   has two owners already and a third is the exact trap. */
+const PAN_DUR=0.7, PAN_HOLD=2.5, PAN_BACK=0.5;
+// Deliberately NOT in S and never saved. A pan is a momentary hint; restoring
+// one would drop a returning player into a view of the barn with no farmer.
+const pan={phase:'off', t:0, from:new THREE.Vector3(), to:new THREE.Vector3(), cur:new THREE.Vector3()};
+// easeInOutQuad. No overshoot and no elastic on purpose — anything that passes
+// the target and comes back reads as a wobble at this camera distance, i.e. as
+// the game being unsure, rather than as a deliberate look over there.
+const panEase=u=> u<0.5 ? 2*u*u : 1-Math.pow(-2*u+2,2)/2;
+// The focus point the camera is framing RIGHT NOW, recovered from where it
+// actually is rather than from where it was told to go. camera.position is
+// always camGoalFor(focus) for some focus, so inverting the offset gives the
+// exact point the player is looking at — including mid-lerp, while the camera
+// still trails a walking farmer. Starting the pan from here is what makes it
+// begin without a jump.
+function camFocusNow(){
+  return {x:camera.position.x, z:camera.position.z-CAM_BACK*getZoom()};
+}
+// x and z only — see the note above on why a y would tilt the camera.
+function panTargetFor(id){
+  const key=TASK_PAN[id];
+  if(!key) return null;                       // ad tasks: absent from the map
+  if(key==='farm.beds') return {x:ZONES[0].cx, z:ZONES[0].cz};
+  const a=anchors.find(an=>an.key===key);
+  if(!a) return null;
+  const p=a.pos();
+  return {x:p.x, z:p.z};
+}
+function startPan(x,z){
+  const f=(pan.phase==='off') ? camFocusNow() : pan.cur;
+  pan.from.set(f.x,0,f.z);
+  pan.to.set(x,0,z);
+  pan.t=0; pan.phase='out';
+}
+// Any touch on the scene means the player wants the controls back, so ease to
+// the farmer from wherever the pan currently is instead of cutting.
+function cancelPan(){
+  if(pan.phase==='off'||pan.phase==='back'||pan.phase==='end') return;
+  pan.from.copy(pan.cur); pan.t=0; pan.phase='back';
+}
+function camFocus(dt){
+  const f=FarmerRig.root.position;
+  if(pan.phase==='off') return f;
+  // 'end' is one frame of bookkeeping, and it is NOT ceremony — it is what
+  // keeps the last frame of the pan exact. Retiring the pan on the same frame
+  // that reaches the farmer would hand the follow lerp a camera sitting a
+  // fraction of a unit short of its goal, and the lerp would then spend ~8
+  // frames closing that gap while lookAt already pointed exactly at the
+  // farmer — position and look-at briefly out of the fixed offset, which is
+  // the rule 6 swing in miniature. MEASURED: retiring early left a 0.006°
+  // wobble on those frames; retiring one frame later holds 48.27049° flat.
+  // So the landing frame still goes through the rigid copy path below, and
+  // only the frame AFTER it hands back to the lerp — with nothing left to do.
+  if(pan.phase==='end'){ pan.phase='off'; pan.t=0; return f; }
+  pan.t+=dt;
+  if(pan.phase==='out'){
+    const e=panEase(Math.min(1,pan.t/PAN_DUR));
+    pan.cur.set(pan.from.x+(pan.to.x-pan.from.x)*e, 0, pan.from.z+(pan.to.z-pan.from.z)*e);
+    if(pan.t>=PAN_DUR){ pan.phase='hold'; pan.t=0; }
+  }else if(pan.phase==='hold'){
+    pan.cur.copy(pan.to);
+    if(pan.t>=PAN_HOLD){ pan.phase='back'; pan.t=0; pan.from.copy(pan.cur); }
+  }else{
+    // Back toward the farmer's CURRENT position, re-read every frame: the
+    // player may have walked while the camera was away, and easing to where
+    // they WERE would end the pan looking at empty grass.
+    const e=panEase(Math.min(1,pan.t/PAN_BACK));
+    pan.cur.set(pan.from.x+(f.x-pan.from.x)*e, 0, pan.from.z+(f.z-pan.from.z)*e);
+    // At this point e is exactly 1, so pan.cur IS the farmer — the frame below
+    // lands the camera on the follow goal precisely. See the note on 'end'.
+    if(pan.t>=PAN_BACK){ pan.phase='end'; pan.t=0; }
+  }
+  return pan.cur;
+}
 function updateCamera(dt){
-  const p=FarmerRig.root.position;
+  const p=camFocus(dt);
   camGoalFor(p);
   // The 5.5/s lerp is what makes the camera trail the farmer pleasantly. It is
   // the wrong response to a PINCH: the player's fingers are the input device,
   // and a camera that arrives 300ms after them feels like rubber rather than
   // like every other app they own. So while a pinch is live the goal is
   // followed exactly, and the lerp resumes the moment they let go.
-  camera.position.lerp(camGoal, pinch.active ? 1 : Math.min(1,dt*5.5));
+  //
+  // It is also the wrong response to a PAN, for a different reason: the pan is
+  // ALREADY an easing curve, and a lerp on top of it is a second, lagging
+  // filter that would pull position out of step with the look-at — the rule 6
+  // swing described above. During a pan the goal is taken exactly.
+  if(pan.phase!=='off') camera.position.copy(camGoal);
+  else camera.position.lerp(camGoal, pinch.active ? 1 : Math.min(1,dt*5.5));
   camera.lookAt(p.x, CAM_LOOK_Y, p.z);
 }
 // Put the camera exactly where it is heading, with no lerp. Two callers, and
@@ -2726,10 +3011,16 @@ function harvest(i){
   const sp=worldToScreen(wp.x,1.6,wp.z);
   popText(sp.x,sp.y,'+'+val,'#ffd44d');
   flyCoin(sp.x,sp.y);sparkBurst(sp.x,sp.y);
-  chirp(640+Math.random()*140);
+  sfx('harvest');
   sync3DFarm();renderHeader();
 }
-function collectWool(i){
+/* `silent` exists for exactly one caller: the Insta-Wool ad shears the whole
+   flock in a single synchronous loop, and with 10 sheep that is 10 calls in
+   one millisecond. That is the one genuine burst hazard in the game and it is
+   fixed STRUCTURALLY here rather than left to the throttle — the throttle is
+   the backstop, not the plan. That caller passes true and plays one
+   sfx('woolAll') afterwards. */
+function collectWool(i,silent){
   const sh=S.sheep[i];
   // Called from a tap, from the Wool Bot in tick(), and from the Insta-Wool ad.
   // Only the tap path could ever assume a ready sheep with a built mesh.
@@ -2743,8 +3034,10 @@ function collectWool(i){
     const sp=worldToScreen(m.position.x,2.4,m.position.z);
     popText(sp.x,sp.y,'+'+fmt(val)+' 🧶','#fff');
     flyCoin(sp.x,sp.y);sparkBurst(sp.x,sp.y);
-    chirp(720+Math.random()*100);
   }
+  // Outside the mesh check on purpose: the income happened whether or not the
+  // sheep had a built mesh to pop a label over.
+  if(!silent) sfx('wool');
   sync3DMeadow();renderHeader();
 }
 
@@ -2909,9 +3202,17 @@ function syncTaskChip(d,def,i){
   d.classList.toggle('done',done);
   const body=d.querySelector('.tBody');
   const shape=done?'claim':'bar';
-  if(d.dataset.shape!==shape){
+  const wasShape=d.dataset.shape;
+  if(wasShape!==shape){
     d.dataset.shape=shape;
     if(done){
+      /* The single biggest sound the game was missing: a task becoming
+         claimable. Gated on the EDGE bar -> claim specifically, not merely on
+         `done`, so no repaint can retrigger it — and so a chip that is BUILT
+         already-claimable (shape '', e.g. a reload) stays silent rather than
+         announcing something the player already had. sfx()'s 0.40s throttle
+         is a second line of defence behind this gate, not the gate itself. */
+      if(wasShape==='bar') sfx('taskReady');
       d.dataset.reward=String(taskReward(def));
       body.innerHTML=`<div class="claimRow">
             <button class="claimBtn" data-m="1">+${fmt(taskReward(def))}</button>
@@ -2924,8 +3225,8 @@ function syncTaskChip(d,def,i){
       // meaning exactly "position in S.taskIdx", which is the Phase 2
       // invariant. A missing task gives -1, and claimTask() no-ops on it.
       const slotOf=()=>S.taskIdx.indexOf(Number(d.dataset.setIdx));
-      body.querySelector('[data-m="1"]').addEventListener('pointerdown',()=>claimTask(slotOf(),1));
-      body.querySelector('[data-m="2"]').addEventListener('pointerdown',()=>AdManager.show(()=>{registerAdWatch();claimTask(slotOf(),2);}));
+      body.querySelector('[data-m="1"]').addEventListener('pointerdown',()=>{sfx('tap');claimTask(slotOf(),1);});
+      body.querySelector('[data-m="2"]').addEventListener('pointerdown',()=>{sfx('tap');AdManager.show(()=>{registerAdWatch();claimTask(slotOf(),2);});});
     }else{
       body.innerHTML=`<div class="tBar"><div class="tFill" style="width:${prog/target*100}%"></div></div>
           <div class="tNums">${nums}</div>`;
@@ -3014,6 +3315,32 @@ function renderTasks(pulse){
   // changes — rather than per frame.
   measureAnchorBounds();
 }
+/* P6.1 — tapping a chip pans the camera to where that task is achieved.
+
+   ONE delegated listener on the strip, installed once at boot. Not per chip:
+   renderTasks() reconciles chips in place and keeps them across renders, so a
+   per-chip listener would be attached on some paths and not others.
+
+   Nothing here touches the chip's own styling. The chip is not animated, not
+   highlighted and not transformed — see the rule 7 note beside the pan. */
+function initTaskPan(){
+  $('#taskStrip').addEventListener('pointerdown',e=>{
+    // The claim buttons win outright. They have their own pointerdown handlers
+    // and a finished task's chip is a place to COLLECT, not a place to ask
+    // "where?" — the player has already been there.
+    if(e.target.closest('.claimBtn')) return;
+    const chip=e.target.closest('.task');
+    if(!chip||chip.classList.contains('done')) return;
+    const t=panTargetFor(chip.dataset.taskId);
+    // Absent from TASK_PAN (the three ad tasks) => nothing happens at all. No
+    // pan, no error, and deliberately no feedback animation either: a shake or
+    // a flash would be a third owner of the chip's transform (rule 7), and
+    // "this chip does nothing" is better said by silence than by a wobble.
+    if(!t) return;
+    startPan(t.x,t.z);
+  });
+}
+let boostWas=false, botWas=false, woolWas=false;
 function renderRewards(){
   document.querySelectorAll('.rw').forEach(b=>{
     const key=b.dataset.key,ready=adReady(key);
@@ -3028,11 +3355,19 @@ function renderRewards(){
     }
   });
   const br=$('#boostRow');br.innerHTML='';
-  if(boostOn()){const s2=Math.ceil((S.boostUntil-now())/1000);
+  const bOn=boostOn(), sOn=superBotOn(), wOn=woolBotOn();
+  /* A boost STARTING has a call site (the ad reward). A boost ENDING has none
+     — it just stops being true — so the edge is detected here, where the chips
+     that represent it are already being painted. Falling edge only, and the
+     three flags start false, so nothing fires on the first render or when a
+     save loads with an already-expired boost. */
+  if((boostWas&&!bOn)||(botWas&&!sOn)||(woolWas&&!wOn)) sfx('boostEnd');
+  boostWas=bOn; botWas=sOn; woolWas=wOn;
+  if(bOn){const s2=Math.ceil((S.boostUntil-now())/1000);
     br.insertAdjacentHTML('beforeend',`<span class="chip boost">☀️ 2× ${Math.floor(s2/60)}:${String(s2%60).padStart(2,'0')}</span>`);}
-  if(superBotOn()){const s2=Math.ceil((S.superBotUntil-now())/1000);
+  if(sOn){const s2=Math.ceil((S.superBotUntil-now())/1000);
     br.insertAdjacentHTML('beforeend',`<span class="chip bot">🤖 ${Math.floor(s2/60)}:${String(s2%60).padStart(2,'0')}</span>`);}
-  if(woolBotOn()){const s2=Math.ceil((S.woolBotUntil-now())/1000);
+  if(wOn){const s2=Math.ceil((S.woolBotUntil-now())/1000);
     br.insertAdjacentHTML('beforeend',`<span class="chip wool">🧶 ${Math.floor(s2/60)}:${String(s2%60).padStart(2,'0')}</span>`);}
 }
 function renderAll(){renderHeader();renderTasks();renderRewards();sync3DFarm();sync3DMeadow();refreshAnchors();}
@@ -3084,7 +3419,9 @@ function fireworks(){
           {transform:`translate(${Math.cos(a)*dist}px,${Math.sin(a)*dist+30}px) scale(0.3)`,opacity:0}],
           {duration:800+Math.random()*400,easing:'cubic-bezier(.1,.6,.4,1)'}).onfinish=()=>d.remove();
       }
-      chirp(500+burst*120,'triangle',0.06);
+      // No sound per burst. The whole firework is covered by the single
+      // sfx('levelUp') its callers play — that phrase is ~1.0s long precisely
+      // to span 4 bursts x 280ms. A per-burst sound on top of it doubled up.
     },burst*280);
   }
   confetti();
@@ -3111,20 +3448,294 @@ function popText(x,y,txt,color){
 }
 function shake(el){
   el.animate([{transform:'translateX(0)'},{transform:'translateX(-5px)'},{transform:'translateX(5px)'},{transform:'translateX(0)'}],{duration:220});
-  chirp(160,'square',0.05);
+  // The 160Hz SQUARE that used to fire here is gone. shake() is the visual
+  // half of "no"; the sound is chosen by the caller, because the two callers
+  // mean different things — pressAnchor() means "you cannot afford this" and
+  // tryAdReward() means "this ad is on cooldown". Both play sfx('denied').
 }
-let AC=null;
-function chirp(freq,type='sine',vol=0.07){
+/* =====================================================================
+   ██ SOUND ██
+   Every voice is SYNTHESISED at runtime from oscillators plus one noise
+   buffer filled by a JS loop. There is no audio file, no CDN, no data:audio
+   URI, no <audio> element, no decodeAudioData and no AudioWorklet.addModule
+   (that last one is a URL fetch — it breaks rule 3 AND 404s under file://).
+   That is CLAUDE.md rule 3, "no external assets, ever", applied to sound.
+
+   This REPLACES chirp(), which had four defects and they are why the game
+   sounded cheap:
+     1. g.gain.setValueAtTime(vol, ...) is an instant STEP. A discontinuity in
+        the waveform is a CLICK on the front of every single sound. Every voice
+        here ramps LINEARLY from silence to peak over a 4-12ms attack instead.
+        An exponential attack from near-zero would not do: it is inaudibly slow
+        and then jumps, which puts the click straight back.
+     2. Everything glided up 60% (freq*1.6) whatever the caller meant — even
+        the failure sound rose.
+     3. Everything connected straight to AC.destination, so concurrent voices
+        clipped into crackle. There is now a master gain and a compressor.
+     4. Multi-note sequences ran on setTimeout, which wobbles under load. Every
+        sequence here is scheduled on the AUDIO clock, at absolute offsets from
+        AC.currentTime.
+   ===================================================================== */
+let AC=null, SFX_MASTER=null, SFX_NOISE=null;
+const SFX_VOICE_CAP=8;
+/* ONE C-major pentatonic table, and it is load-bearing rather than decorative:
+   a pentatonic scale contains no minor seconds and no tritones, so ANY two
+   notes that happen to overlap are consonant. Six harvests landing inside
+   300ms become a chord instead of a pile-up. The old chirp(640+random*140) is
+   exactly what this replaces — a continuous random frequency is microtonal,
+   and microtonal reads as "machine". */
+const SFX_SCALE=[523.25,587.33,659.25,783.99,880,1046.5];   // C5 D5 E5 G5 A5 C6
+
+/* Built EXACTLY ONCE, and only from inside a gesture handler. This is the one
+   and only `new AudioContext` in the file. Constructing it at boot — or lazily
+   inside sfx(), which is what chirp() used to do — is fatal on iOS Safari: a
+   context created outside a gesture is born permanently suspended and every
+   later resume() is ignored for the whole session. The symptom players report
+   is "sound worked for a second and then died". */
+function unlockAudio(){
   try{
-    if(!AC){const C=window.AudioContext||window.webkitAudioContext;if(!C)return;AC=new C();}
-    if(AC.state==='suspended')AC.resume();
-    const o=AC.createOscillator(),g=AC.createGain();
-    o.type=type;o.frequency.value=freq;
-    o.frequency.exponentialRampToValueAtTime(freq*1.6,AC.currentTime+0.09);
-    g.gain.setValueAtTime(vol,AC.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.0001,AC.currentTime+0.14);
-    o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+0.15);
+    if(AC) return;
+    const C=window.AudioContext||window.webkitAudioContext;
+    if(!C) return;
+    AC=new C();
+    const comp=AC.createDynamicsCompressor();
+    comp.threshold.value=-14; comp.knee.value=12; comp.ratio.value=4;
+    comp.attack.value=0.003; comp.release.value=0.18;
+    SFX_MASTER=AC.createGain(); SFX_MASTER.gain.value=0.55;
+    SFX_MASTER.connect(comp); comp.connect(AC.destination);
+    // ONE shared noise buffer, generated by a JS loop. It is the only
+    // non-oscillator source in the game and it is what makes the shears in
+    // the wool sound read as shears.
+    const n=Math.floor(AC.sampleRate*0.5);
+    SFX_NOISE=AC.createBuffer(1,n,AC.sampleRate);
+    const ch=SFX_NOISE.getChannelData(0);
+    for(let i=0;i<n;i++) ch[i]=Math.random()*2-1;
+    if(AC.state==='suspended') AC.resume().catch(()=>{});
   }catch(e){}
+}
+/* WINDOW + CAPTURE PHASE, and all three parts of that are deliberate:
+   1. #sceneWrap would be wrong — a returning player's first tap is the
+      offline-welcome panel or the level-up overlay, both document.body
+      children outside #sceneWrap.
+   2. Bubble phase would be wrong — addAnchor() calls e.stopPropagation() on
+      every world Buy button's pointerdown, so a bubble-phase window listener
+      never fires when the first press is a Buy button, which after P5 is the
+      most likely first press there is. Capture runs before any target handler
+      and cannot be stopped.
+   3. {once:true} is required rather than tidy: `npm run probe` dispatches
+      hundreds of synthetic pointer events. */
+window.addEventListener('pointerdown',unlockAudio,{capture:true,once:true,passive:true});
+window.addEventListener('touchend',  unlockAudio,{capture:true,once:true,passive:true});
+
+/* Voice budget. Holds END TIMES (plain numbers) — never nodes, and no onended
+   handler anywhere: a node kept in an array is pinned, and onended costs a
+   main-thread task per voice. */
+const sfxEnds=[];
+function sfxRoom(t0){
+  for(let i=sfxEnds.length-1;i>=0;i--) if(sfxEnds[i]<=t0) sfxEnds.splice(i,1);
+  return sfxEnds.length<SFX_VOICE_CAP;
+}
+/* One oscillator + one gain + (optionally) filters. Positional arguments on
+   purpose, so a recipe schedules a note without allocating an options object
+   on the hot path; `o` carries only the exotic cases (glides, filter sweeps,
+   vibrato, a non-zero starting gain). */
+function sfxVoice(t0,type,f,pk,dur,atk,lp,o){
+  if(!sfxRoom(t0)) return;
+  o=o||0;
+  const osc=AC.createOscillator();
+  osc.type=type;
+  osc.frequency.setValueAtTime(f,t0);
+  if(o.f2) osc.frequency.exponentialRampToValueAtTime(o.f2,t0+(o.glide||0.05));
+  let node=osc;
+  if(o.hp){ const h=AC.createBiquadFilter(); h.type='highpass';
+            h.frequency.setValueAtTime(o.hp,t0); node.connect(h); node=h; }
+  if(lp){
+    const b=AC.createBiquadFilter(); b.type='lowpass';
+    b.frequency.setValueAtTime(lp,t0);
+    // A lowpass on every voice is what makes a tone read as "warm wooden toy"
+    // rather than "smoke alarm": phone speakers exaggerate 2-5kHz badly.
+    if(o.lp2) b.frequency.exponentialRampToValueAtTime(o.lp2,t0+(o.lpT||o.glide||0.25));
+    node.connect(b); node=b;
+  }
+  const g=AC.createGain();
+  g.gain.setValueAtTime(o.g0||0.0001,t0);
+  g.gain.linearRampToValueAtTime(pk,t0+atk);          // LINEAR attack — see (1)
+  g.gain.exponentialRampToValueAtTime(0.0001,t0+dur); // exponential decay
+  node.connect(g); g.connect(SFX_MASTER);
+  if(o.vib){
+    // The vibrato IS the bleat: a slow LFO into detune, not a pitch envelope.
+    const l=AC.createOscillator(), lg=AC.createGain();
+    l.type='sine'; l.frequency.value=o.vib; lg.gain.value=o.vibD||32;
+    l.connect(lg); lg.connect(osc.detune);
+    l.start(t0); l.stop(t0+dur+0.02);
+  }
+  osc.start(t0); osc.stop(t0+dur+0.02);
+  sfxEnds.push(t0+dur);
+}
+/* The shared noise buffer through a band- or low-pass. */
+function sfxNoise(t0,f,q,pk,dur,atk){
+  if(!sfxRoom(t0)) return;
+  const s=AC.createBufferSource(); s.buffer=SFX_NOISE; s.loop=true;
+  const b=AC.createBiquadFilter(); b.type='bandpass';
+  b.frequency.setValueAtTime(f,t0); b.Q.value=q;
+  const g=AC.createGain();
+  g.gain.setValueAtTime(0.0001,t0);
+  g.gain.linearRampToValueAtTime(pk,t0+atk);
+  g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+  s.connect(b); b.connect(g); g.connect(SFX_MASTER);
+  s.start(t0); s.stop(t0+dur+0.02);
+  sfxEnds.push(t0+dur);
+}
+// Harvest walks UP the scale, so repeated harvesting becomes a rising melodic
+// phrase instead of one note hammered. It resets to the bottom after 700ms of
+// silence, on the audio clock like everything else here.
+let sfxHarvestStep=0, sfxHarvestAt=-99;
+function sfxHarvestPitch(t0){
+  if(t0-sfxHarvestAt>0.7) sfxHarvestStep=0;
+  sfxHarvestAt=t0;
+  const f=SFX_SCALE[1+(sfxHarvestStep%5)];   // D5 E5 G5 A5 C6
+  sfxHarvestStep++;
+  return f;
+}
+/* ONE table, built at parse time, so sfx() is a property lookup. `gap` is the
+   minimum spacing in SECONDS OF AUDIO CLOCK between two plays of that name. */
+const SFX={
+  tap:{gap:0.12,play(t){
+    sfxVoice(t,'triangle',660,0.09,0.09,0.006,2600,{f2:720,glide:0.03});
+  }},
+  harvest:{gap:0.07,play(t){
+    const f=sfxHarvestPitch(t);
+    sfxVoice(t,'triangle',f,0.10,0.16,0.005,3200,{f2:f*1.04,glide:0.05});
+    sfxVoice(t,'sine',f*2,0.035,0.16,0.005,3200);
+  }},
+  // A perfect fifth with a deliberately SLOW attack, plus filtered noise:
+  // shears. That timbre is what tells meadow income from farm income without
+  // the player having to read anything.
+  wool:{gap:0.07,play(t){
+    sfxVoice(t,'triangle',523.25,0.030,0.20,0.014,2400);
+    sfxVoice(t,'triangle',783.99,0.030,0.20,0.014,2400);
+    sfxNoise(t,1800,1.2,0.045,0.12,0.014);
+  }},
+  woolAll:{gap:0.15,play(t){
+    SFX.wool.play(t);
+    sfxVoice(t+0.09,'triangle',587.33,0.07,0.18,0.008,2600);
+    sfxVoice(t+0.18,'triangle',783.99,0.07,0.18,0.008,2600);
+    sfxVoice(t+0.27,'triangle',1046.5,0.07,0.20,0.008,2800);
+  }},
+  // The sub-bass under the fifth is what makes a purchase feel like it landed
+  // on a table rather than beeped.
+  buy:{gap:0.15,play(t){
+    sfxVoice(t,     'triangle',523.25,0.11,0.16,0.008,2800);
+    sfxVoice(t+0.09,'triangle',783.99,0.11,0.16,0.008,2800);
+    sfxVoice(t,     'sine',    130.81,0.055,0.20,0.012,400);
+  }},
+  // A descending minor second, warm and low. Replaces the raw 160Hz SQUARE
+  // that shake() used to fire, which on a phone speaker is an error klaxon.
+  denied:{gap:0.25,play(t){
+    sfxVoice(t,'triangle',311.13,0.085,0.22,0.010,1400,{f2:293.66,glide:0.10});
+  }},
+  // A soft muted thud, deliberately unlike `denied` so that "walk over there"
+  // and "you cannot afford this" are told apart without reading the bubble.
+  tooFar:{gap:0.25,play(t){
+    sfxVoice(t,'triangle',261.63,0.055,0.14,0.012,1200);
+  }},
+  taskReady:{gap:0.40,play(t){
+    const n=[659.25,783.99,987.77];
+    for(let i=0;i<3;i++){
+      const tt=t+i*0.09;
+      sfxVoice(tt,'triangle',n[i],0.10,0.22,0.008,3000);
+      sfxVoice(tt,'sine',n[i]*2,0.025,0.22,0.008,3000);
+    }
+  }},
+  claim:{gap:0.15,play(t){
+    const n=[783.99,1046.5,1318.51];
+    for(let i=0;i<3;i++) sfxVoice(t+i*0.07,'triangle',n[i],0.11,0.22,0.008,3200);
+    const sh=[1568,2093,2637];
+    for(let i=0;i<3;i++) sfxVoice(t,'sine',sh[i],0.022,0.55,0.08,0);
+  }},
+  // ONE of these per fountain. coinFountain() schedules 12 coin flights 70ms
+  // apart and a sound per flight would be a rattle, so the call sites play
+  // this once instead.
+  coinPour:{gap:0.30,play(t){
+    const m=[1,1.12,1.26,1.34,1.5], off=[0,0.05,0.11,0.16,0.23];
+    for(let i=0;i<5;i++)
+      sfxVoice(t+off[i],'sine',1568*m[i],0.04,0.14,0.004,4000,{hp:600});
+  }},
+  // ~1.0s total, which matches the fireworks it plays under (4 bursts x 280ms).
+  levelUp:{gap:0.15,play(t){
+    const n=[523.25,587.33,659.25,783.99,1046.5], off=[0,0.10,0.20,0.30,0.43];
+    for(let i=0;i<5;i++){
+      const tt=t+off[i];
+      sfxVoice(tt,'triangle',n[i],0.12,0.28,0.010,3400);
+      sfxVoice(tt,'sine',n[i]*2,0.03,0.28,0.010,3400);
+    }
+    sfxVoice(t,'sine',65.41,0.065,0.95,0.06,300);
+  }},
+  // A rising sweep with the lowpass TRACKING at twice the instantaneous pitch,
+  // scheduled with the same ramp shape, then the top of the level-up phrase.
+  unlock:{gap:0.15,play(t){
+    sfxVoice(t,'triangle',220,0.11,0.62,0.35,440,
+             {f2:880,glide:0.45,lp2:1760,lpT:0.45,g0:0.02});
+    sfxVoice(t+0.45,'triangle',783.99,0.12,0.28,0.010,3400);
+    sfxVoice(t+0.45,'sine',   1567.98,0.03,0.28,0.010,3400);
+    sfxVoice(t+0.58,'triangle',1046.5,0.12,0.28,0.010,3400);
+    sfxVoice(t+0.58,'sine',    2093,  0.03,0.28,0.010,3400);
+  }},
+  boostStart:{gap:0.15,play(t){
+    sfxVoice(t,'triangle',392,0.10,0.42,0.02,800,{f2:523.25,glide:0.25,lp2:3000,lpT:0.25});
+    sfxVoice(t,'sine',    784,0.03,0.42,0.02,800,{f2:1046.5,glide:0.25,lp2:3000,lpT:0.25});
+  }},
+  // The same interval reversed, and QUIETER than its start. A boost running
+  // out is not the player's fault, so it is never a buzzer.
+  boostEnd:{gap:0.15,play(t){
+    sfxVoice(t,'triangle',523.25,0.055,0.40,0.02,1800,{f2:392,glide:0.30});
+  }},
+  baa:{gap:0.15,play(t){
+    sfxVoice(t,'triangle',392,0.075,0.5,0.03,1600,{vib:5.5,vibD:32});
+  }}
+};
+const sfxLast=Object.create(null);
+/* THE DISPATCHER. One guard expression covers never-unlocked, browser-
+   suspended, backgrounded, no-state-yet and muted. Muting EARLY-RETURNS here
+   and never suspends the context: suspending would freeze AC.currentTime,
+   which is the throttle clock, so every stored timestamp would go stale and
+   unmuting would release a burst. Early return also creates zero nodes.
+   Failure is always silent — never a throw, and never console.error/warn,
+   because `npm run shots` fails the build on either. */
+function sfx(name,delay){
+  try{
+    if(!AC || AC.state!=='running' || !S || S.mute) return;
+    const r=SFX[name]; if(!r) return;
+    /* THROTTLE ON AC.currentTime AND NOTHING ELSE. `npm run shots` virtualises
+       BOTH Date.now and performance.now and then runs 240 frames in a fraction
+       of a second of wall time — a throttle on either of those clocks would
+       let a 240-frame burst straight through in the one harness that has to
+       stay quiet. AC.currentTime is not virtualised. */
+    const t=AC.currentTime;
+    if(t-(sfxLast[name]||-99)<r.gap) return;
+    sfxLast[name]=t;
+    r.play(t+(delay||0));
+  }catch(e){}
+}
+function syncMuteBtn(){
+  const b=$('#muteBtn'); if(!b||!S) return;
+  b.textContent=S.mute?'🔇':'🔊';
+  b.setAttribute('aria-label',S.mute?'Sound off':'Sound on');
+}
+function initMute(){
+  const b=$('#muteBtn'); if(!b) return;
+  syncMuteBtn();
+  b.addEventListener('pointerdown',e=>{
+    e.stopPropagation();          // must not reach #sceneWrap's joystick
+    unlockAudio();                // pressing the toggle IS the unlocking gesture
+    S.mute=!S.mute;
+    syncMuteBtn();
+    // save() IMMEDIATELY. The autosave is on a 5s interval, so a mute-then-kill
+    // would otherwise be lost — and "I muted it and it came back" reads as
+    // broken rather than as a race.
+    save();
+    if(!S.mute) sfx('tap');
+  });
 }
 
 /* =====================================================================
@@ -3233,6 +3844,8 @@ if(!booted){
   // the game changing its mind about the framing rather than restoring it.
   snapCamera();
   initJoystick();
+  initTaskPan();
+  initMute();
   buildRewardsDOM();
   // buildAnchors() creates one world button per purchasable, from the same item
   // definitions the deleted shop panel used to read. P5 removed the renderShop()
