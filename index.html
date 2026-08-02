@@ -46,10 +46,33 @@
   --ui:1;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;}
-html,body{margin:0;height:100%;overflow:hidden;
+/* touch-action:none across the WHOLE page, not just the 3D scene.
+   The owner pinched to zoom the game and zoomed the browser page instead. The
+   viewport meta above already says user-scalable=no with maximum-scale=1, and
+   that is correct and NOT the problem: iOS Safari has deliberately ignored both
+   of those since iOS 10, so the meta tag cannot stop a pinch on its own.
+   touch-action WAS set, but only on #sceneWrap and #threeCanvas — so a pinch
+   that began over the top bar, the task card, the coin pill, the ad rail or the
+   minimap was still the browser's to handle, and the page zoomed.
+
+   touch-action:none is the spec's own way to say "this element has no browser
+   gesture behaviour". It suppresses browser pinch-zoom, panning AND double-tap
+   zoom, which is a separate iOS gesture from pinch and needed suppressing too.
+   Crucially it does NOT suppress pointer events: the game's own two-finger
+   pinch in initJoystick() reads pointerdown/pointermove and is untouched by
+   this. That is exactly why it is the right mechanism here — the browser stops
+   claiming the gesture, and the game still receives it.
+
+   Nothing on this page scrolls (body is overflow:hidden and the HUD has no
+   scrollable region), so there is no scrolling behaviour to lose.
+
+   NB this is belt-and-braces for the browser build the owner tests on. The
+   shipped app is native, where user-scalable=no IS honoured inside a WKWebView,
+   so page zoom is not reachable there in the first place. */
+html,body{margin:0;height:100%;overflow:hidden;touch-action:none;
   font-family:'Baloo 2','Comic Sans MS','Segoe UI',system-ui,sans-serif;
   background:#79c8f0;color:var(--text);}
-#app{position:relative;width:100%;height:100vh;height:100dvh;overflow:hidden;}
+#app{position:relative;width:100%;height:100vh;height:100dvh;overflow:hidden;touch-action:none;}
 /* touch-action:none on the WRAPPER as well as the canvas (4C.4). The canvas has
    carried it since v4, but the pointer listeners live on #sceneWrap, and a
    two-finger gesture that begins on any non-canvas child of the wrapper would
@@ -543,7 +566,7 @@ html,body{margin:0;height:100%;overflow:hidden;
       <span id="coinCount">0</span>
     </div>
   </div>
-  <div id="verTag">v5.3</div>
+  <div id="verTag">v5.5</div>
   <div id="noWebGL">
     <div class="emoji">🌾</div>
     <h1>This browser can't show the farm</h1>
@@ -794,6 +817,15 @@ function newState(){
     // reads as a game with no sound at all, and the browser's autoplay policy
     // already guarantees a silent page load until the first tap.
     mute:false,
+    // HAPTICS — flat beside `mute` for the same reason `mute` is flat beside
+    // `zoom` (rule 0.3: until the settings page lands, every preference is
+    // stored flat on S). Migration is free for the same reason: load() does
+    // Object.assign(newState(), raw), so a save written before haptics existed
+    // simply takes this default. DEFAULT ON, matching `mute:false` — a feedback
+    // channel that defaults off reads to the player as a feature that does not
+    // exist. It costs nothing on hardware that cannot vibrate, because haptic()
+    // early-returns when the platform has no vibrate API at all (see below).
+    haptics:true,
     lastSeen:now()
   };
 }
@@ -875,7 +907,7 @@ function claimTask(slot,mult){
   popText(innerWidth/2, 132, '+'+fmt(reward)+' 💰', '#f5a623');
   bump($('#coinPill'));
   farmerCheer();
-  sfx('claim');
+  sfx('claim');   haptic('success');
   // Refill the claimed slot from the CURRENT set only. If the set has nothing
   // left to reveal, the slot is removed instead of being padded from the next
   // set: the player sees 2 chips, then 1, then the level ticks (BACKLOG 2.3
@@ -916,7 +948,7 @@ function farmLevelUp(){
   S.taskIdx = openWindow(S.setIdx);
   S.setNext = S.taskIdx.length;
   fireworks(); flash();
-  sfx('levelUp');
+  sfx('levelUp'); haptic('heavy');
   const bonus=Math.max(50,Math.round(eps()*120/10)*10);
   const ov=document.createElement('div'); ov.className='overlay';
   ov.innerHTML=`<div class="panel">
@@ -958,7 +990,7 @@ function adReady(key){
   return cooled&&underCap&&relevant;
 }
 function tryAdReward(key,btn){
-  if(!adReady(key)){shake(btn);sfx('denied');return;}
+  if(!adReady(key)){shake(btn);sfx('denied');haptic('warning');return;}
   // The tap sound belongs on the path that actually proceeds. Playing it in
   // the button's own listener would stack tap+denied on every press of an ad
   // that is still cooling down.
@@ -984,7 +1016,7 @@ function tryAdReward(key,btn){
       // calls inside one millisecond. One woolAll covers the whole flock.
       for(let i=0;i<S.sheep.length;i++) collectWool(i,true);
       S.woolBotUntil=now()+3*60*1000;
-      sfx('woolAll');
+      sfx('woolAll'); haptic('medium');
     }
     renderAll();save();
   });
@@ -1224,12 +1256,45 @@ function makePine(){
 }
 function makeRock(){
   const g=new THREE.Group();
-  /* 0xb4bcc6 was too pale to survive this scene's lighting: a 1.05 warm
-     directional plus the hemisphere bounce pushed it to near-white, and a
-     scattered white lump on green grass reads as a CLOUD, not as stone (the
-     PM mistook one for a cloud on an iPad screenshot). Darker and warmer —
-     a grey-brown that still lifts off the grass but can never be white. */
-  const r=new THREE.Mesh(geo('rock',()=>new THREE.DodecahedronGeometry(0.62,0)),M(0x8f8b86));
+  /* ROCK COLOUR — 0x2e2b27 looks almost black written down and renders as a
+     mid stone grey. That is not a mistake, and this comment exists so nobody
+     "corrects" it back.
+
+     TWO PREVIOUS ATTEMPTS FAILED, both by guessing instead of measuring.
+     0xb4bcc6 rendered near-white; it was changed to 0x8f8b86 to fix that, and
+     the pixels did not move anywhere near enough — a rock's brightest lit face
+     still measured RGB(225,224,221), 87.6% brightness, i.e. white.
+
+     WHY DARKENING BARELY WORKED. Two multipliers sit between this number and
+     the screen, and together they are far larger than intuition suggests:
+       1. three r128 does NOT decode a material colour from sRGB, so this hex is
+          consumed as a LINEAR value. 0x8f = 143/255 is taken as 0.561 linear,
+          not as the ~0.27 linear that the swatch 0x8f actually represents.
+       2. HemisphereLight 0.62 + DirectionalLight 1.05 = about 1.67x on a face
+          pointing at the sun, then ACESFilmic tone mapping at exposure 1.16 and
+          an sRGB encode on the way out, which lifts midtones hard.
+     Net effect measured across a colour sweep: the brightest face comes out at
+     1.6x to 2.8x the authored channel value. Halving the base from 143 to 70
+     moved the brightest face only from 225 to 193 — still white-ish. So the
+     authored value has to go much lower than it "looks like" it should.
+
+     ALSO TRIED AND REJECTED, with numbers: giving the material an `emissive`
+     floor so the lit response would be flatter (a dark colour plus a mid
+     emissive). Emissive is added AFTER the lighting, so it does not get
+     amplified — but it raises the FLOOR rather than lowering the PEAK. Measured
+     0x1c1a18 + emissive 0x3a3633: brightest still 191 and the face-to-face
+     contrast collapsed from 40 to 21, which turned the dodecahedron into a flat
+     blob. Wrong lever; the peak is the problem, so darkening is the fix.
+
+     WHAT THIS VALUE MEASURES, on an iPhone capture with the rock keyed against
+     a magenta background so nothing else can contaminate the sample:
+       before 0x8f8b86 -> brightest face RGB(225,224,221), 99th pct 223, mean 207
+       after  0x2e2b27 -> brightest face 63%,              99th pct 160, mean 135
+     Grass renders around 200, so the rock now sits clearly BELOW the grass it
+     lies on and reads as stone, while the darkest lit face stays near 104 —
+     nowhere near black, so it is a rock and not a hole in the lawn.
+     Warm-neutral (46,43,39) rather than blue-grey so it reads as mineral. */
+  const r=new THREE.Mesh(geo('rock',()=>new THREE.DodecahedronGeometry(0.62,0)),M(0x2e2b27));
   r.position.y=0.44; r.rotation.set(Math.random(),Math.random(),Math.random()); r.castShadow=true;
   g.add(r); return g;
 }
@@ -1946,13 +2011,39 @@ const ANCHOR_REACH=11;
  * Between those it is linear in width, so a 700px-wide device is not a special
  * case anybody has to think about.
  *
- * Width, not height, and not the diagonal: what makes a tablet's UI read as
- * postage stamps is how much WIDER the screen is than the button, and a phone
- * held in landscape should not suddenly grow its HUD.
+ * THE SHORT EDGE, not the width, and not the diagonal. What makes a tablet's
+ * UI read as postage stamps is how much BIGGER the screen is than the button —
+ * but "bigger" has to mean bigger in BOTH directions, or a phone lying on its
+ * side is mistaken for a tablet. This paragraph used to promise that "a phone
+ * held in landscape should not suddenly grow its HUD" while the code below
+ * measured innerWidth alone, so it did exactly that: an iPhone rotated to
+ * landscape is 852 wide and 393 tall, cleared the 560 ramp on width alone, and
+ * got --ui 1.4500 — the full tablet scale — on a screen only 393px tall, where
+ * the task card then ate over half the height and hid the world.
+ *
+ * Math.min(innerWidth, innerHeight) is the fix, and it is the honest measure of
+ * "how much room is there": a device is only roomy if it is roomy the narrow
+ * way. Every case, measured:
+ *
+ *   iPhone portrait      393x852  -> short edge 393  -> 1.0000  (unchanged)
+ *   iPhone Max portrait  430x932  -> short edge 430  -> 1.0000  (unchanged)
+ *   iPhone landscape     852x393  -> short edge 393  -> 1.0000  (the fix)
+ *   iPad portrait        820x1180 -> short edge 820  -> 1.4500  (unchanged)
+ *   iPad landscape      1180x820  -> short edge 820  -> 1.4500  (tablet stays tablet)
+ *
+ * The game is portrait-locked (see lockPortrait() at boot), so landscape should
+ * never be reachable in the shipped app. This is deliberately belt-and-braces
+ * anyway: it costs one Math.min, it makes the code finally do what this comment
+ * has always claimed, and it means a device or an OS that ignores the lock
+ * degrades to a correctly-sized HUD instead of a broken one.
+ *
+ * DO NOT lower UI_RAMP_FROM to make a tablet bigger — a check asserts it stays
+ * >= 500, because every phone must land on exactly 1.0 (four phases of sizing
+ * were approved at phone size). If a tablet ever needs more, raise UI_MAX.
  */
 const UI_RAMP_FROM=560, UI_MAX=1.45;
 function uiScale(){
-  return Math.min(UI_MAX, Math.max(1, innerWidth/UI_RAMP_FROM));
+  return Math.min(UI_MAX, Math.max(1, Math.min(innerWidth,innerHeight)/UI_RAMP_FROM));
 }
 function applyUIScale(){
   const k=uiScale();
@@ -2287,7 +2378,7 @@ function pressAnchor(a){
   // than living only in a stylesheet.
   // This branch used to be entirely SILENT, which made "walk over" and "you're
   // broke" indistinguishable without reading the bubble.
-  if(a.near===false){ farmerSay('Too far — walk over!'); sfx('tooFar'); return; }
+  if(a.near===false){ farmerSay('Too far — walk over!'); sfx('tooFar'); haptic('light'); return; }
   const cost=a.cost();
   if(S.coins<cost){
     if(!a._shakeT){
@@ -2297,7 +2388,7 @@ function pressAnchor(a){
       a._shakeT=setTimeout(()=>{ a._shakeT=0; },260);
     }
     farmerSay('Not enough coins!');
-    sfx('denied');
+    sfx('denied'); haptic('warning');
     return;
   }
   S.coins-=cost; a.act();
@@ -2305,8 +2396,8 @@ function pressAnchor(a){
   // business, so it overrides the ordinary buy sound with the rising sweep.
   // Buying a sheep gets the buy sound plus a bleat a beat later — scheduled on
   // the audio clock via sfx()'s delay, not on a setTimeout.
-  if(a.key==='meadow.open') sfx('unlock');
-  else { sfx('buy'); if(a.key==='meadow.sheep') sfx('baa',0.18); }
+  if(a.key==='meadow.open'){ sfx('unlock'); haptic('heavy'); }
+  else { sfx('buy'); haptic('success'); if(a.key==='meadow.sheep') sfx('baa',0.18); }
   renderAll(); save();
 }
 
@@ -3011,7 +3102,7 @@ function harvest(i){
   const sp=worldToScreen(wp.x,1.6,wp.z);
   popText(sp.x,sp.y,'+'+val,'#ffd44d');
   flyCoin(sp.x,sp.y);sparkBurst(sp.x,sp.y);
-  sfx('harvest');
+  sfx('harvest'); haptic('light');
   sync3DFarm();renderHeader();
 }
 /* `silent` exists for exactly one caller: the Insta-Wool ad shears the whole
@@ -3037,7 +3128,7 @@ function collectWool(i,silent){
   }
   // Outside the mesh check on purpose: the income happened whether or not the
   // sheep had a built mesh to pop a label over.
-  if(!silent) sfx('wool');
+  if(!silent){ sfx('wool'); haptic('light'); }
   sync3DMeadow();renderHeader();
 }
 
@@ -3212,7 +3303,7 @@ function syncTaskChip(d,def,i){
          already-claimable (shape '', e.g. a reload) stays silent rather than
          announcing something the player already had. sfx()'s 0.40s throttle
          is a second line of defence behind this gate, not the gate itself. */
-      if(wasShape==='bar') sfx('taskReady');
+      if(wasShape==='bar'){ sfx('taskReady'); haptic('medium'); }
       d.dataset.reward=String(taskReward(def));
       body.innerHTML=`<div class="claimRow">
             <button class="claimBtn" data-m="1">+${fmt(taskReward(def))}</button>
@@ -3477,6 +3568,13 @@ function shake(el){
         AC.currentTime.
    ===================================================================== */
 let AC=null, SFX_MASTER=null, SFX_NOISE=null;
+/* "A real user gesture has happened at least once." Audio needs it because a
+   context built outside a gesture is born suspended; HAPTICS needs the very
+   same signal for the very same kind of reason — browsers block
+   navigator.vibrate until the frame has been tapped, and a blocked call is
+   reported as a console intervention, which fails `npm run shots`. So the two
+   share one flag rather than each inventing a listener. */
+let USER_GESTURE=false;
 const SFX_VOICE_CAP=8;
 /* ONE C-major pentatonic table, and it is load-bearing rather than decorative:
    a pentatonic scale contains no minor seconds and no tritones, so ANY two
@@ -3494,6 +3592,10 @@ const SFX_SCALE=[523.25,587.33,659.25,783.99,880,1046.5];   // C5 D5 E5 G5 A5 C6
    is "sound worked for a second and then died". */
 function unlockAudio(){
   try{
+    // Set BEFORE the early return: this function is the file's one and only
+    // first-gesture hook, and haptics must be armed by that gesture even on a
+    // device with no Web Audio at all (where everything below is skipped).
+    USER_GESTURE=true;
     if(AC) return;
     const C=window.AudioContext||window.webkitAudioContext;
     if(!C) return;
@@ -3501,7 +3603,17 @@ function unlockAudio(){
     const comp=AC.createDynamicsCompressor();
     comp.threshold.value=-14; comp.knee.value=12; comp.ratio.value=4;
     comp.attack.value=0.003; comp.release.value=0.18;
-    SFX_MASTER=AC.createGain(); SFX_MASTER.gain.value=0.55;
+    /* MASTER LEVEL — the one dial for how loud the whole game is.
+       Was 0.55, and at 0.55 the owner heard NOTHING on their phone: the bank
+       measured -33.6 to -17.8 dBFS when a mobile game peaks near -4, i.e. the
+       loudest sound in the game was ~14 dB (about five times) too quiet.
+       5.0 puts the loud end where a real game sits — levelUp -2.3, claim and
+       taskReady -3.0, buy -3.5 — with the compressor above doing exactly the
+       job it was built for on the peaks. Do not raise it further without
+       measuring: past ~6.5 the loudest sounds cross -1 dBFS.
+       `npm run audio` reads this value off the LIVE graph, so it re-measures
+       the whole bank automatically the moment this number changes. */
+    SFX_MASTER=AC.createGain(); SFX_MASTER.gain.value=5.0;
     SFX_MASTER.connect(comp); comp.connect(AC.destination);
     // ONE shared noise buffer, generated by a JS loop. It is the only
     // non-oscillator source in the game and it is what makes the shears in
@@ -3601,7 +3713,7 @@ function sfxHarvestPitch(t0){
    minimum spacing in SECONDS OF AUDIO CLOCK between two plays of that name. */
 const SFX={
   tap:{gap:0.12,play(t){
-    sfxVoice(t,'triangle',660,0.09,0.09,0.006,2600,{f2:720,glide:0.03});
+    sfxVoice(t,'triangle',660,0.105,0.09,0.006,2600,{f2:720,glide:0.03});
   }},
   harvest:{gap:0.07,play(t){
     const f=sfxHarvestPitch(t);
@@ -3612,9 +3724,9 @@ const SFX={
   // shears. That timbre is what tells meadow income from farm income without
   // the player having to read anything.
   wool:{gap:0.07,play(t){
-    sfxVoice(t,'triangle',523.25,0.030,0.20,0.014,2400);
-    sfxVoice(t,'triangle',783.99,0.030,0.20,0.014,2400);
-    sfxNoise(t,1800,1.2,0.045,0.12,0.014);
+    sfxVoice(t,'triangle',523.25,0.040,0.20,0.014,2400);
+    sfxVoice(t,'triangle',783.99,0.040,0.20,0.014,2400);
+    sfxNoise(t,1800,1.2,0.060,0.12,0.014);
   }},
   woolAll:{gap:0.15,play(t){
     SFX.wool.play(t);
@@ -3632,12 +3744,12 @@ const SFX={
   // A descending minor second, warm and low. Replaces the raw 160Hz SQUARE
   // that shake() used to fire, which on a phone speaker is an error klaxon.
   denied:{gap:0.25,play(t){
-    sfxVoice(t,'triangle',311.13,0.085,0.22,0.010,1400,{f2:293.66,glide:0.10});
+    sfxVoice(t,'triangle',311.13,0.098,0.22,0.010,1400,{f2:293.66,glide:0.10});
   }},
   // A soft muted thud, deliberately unlike `denied` so that "walk over there"
   // and "you cannot afford this" are told apart without reading the bubble.
   tooFar:{gap:0.25,play(t){
-    sfxVoice(t,'triangle',261.63,0.055,0.14,0.012,1200);
+    sfxVoice(t,'triangle',261.63,0.085,0.14,0.012,1200);
   }},
   taskReady:{gap:0.40,play(t){
     const n=[659.25,783.99,987.77];
@@ -3688,7 +3800,7 @@ const SFX={
   // The same interval reversed, and QUIETER than its start. A boost running
   // out is not the player's fault, so it is never a buzzer.
   boostEnd:{gap:0.15,play(t){
-    sfxVoice(t,'triangle',523.25,0.055,0.40,0.02,1800,{f2:392,glide:0.30});
+    sfxVoice(t,'triangle',523.25,0.073,0.40,0.02,1800,{f2:392,glide:0.30});
   }},
   baa:{gap:0.15,play(t){
     sfxVoice(t,'triangle',392,0.075,0.5,0.03,1600,{vib:5.5,vibD:32});
@@ -3715,6 +3827,96 @@ function sfx(name,delay){
     if(t-(sfxLast[name]||-99)<r.gap) return;
     sfxLast[name]=t;
     r.play(t+(delay||0));
+  }catch(e){}
+}
+/* =====================================================================
+   HAPTICS  —  the vibration channel.
+
+   Built deliberately to the SAME SHAPE as sfx() above, because it is the
+   same kind of thing: an action happens, the game answers with a small
+   physical acknowledgement, and one in-game setting decides whether it
+   speaks at all. Rule 0.3 — like sound, this is the GAME'S OWN SETTING and
+   is never the phone's ringer switch. The settings page does not exist yet,
+   so all that is owed today is: the state flag (S.haptics, flat beside
+   S.mute), the dispatcher, and the call sites. When the page lands it flips
+   S.haptics and everything below already obeys it — no rewrite.
+
+   IMPLEMENTATION REALITY, stated plainly rather than discovered later:
+     - `navigator.vibrate` is an ANDROID-ONLY API in practice. iOS Safari
+       does not implement it, and a plain WKWebView does not either. So on
+       an iPhone TODAY every call below correctly does nothing at all.
+     - That is EXPECTED, not a fault, and it must be SILENT. Never a throw,
+       never console.error/warn — `npm run shots` fails the build on a page
+       error and on a console error, and `shots`/`probe`/`churn`/`fps` all
+       drive thousands of real pointer events through these very call sites.
+     - Per rule 0.1 the NATIVE SHELL owns the iOS half. It is not faked in
+       JavaScript. It arrives through the seam marked below.
+
+   KINDS ARE NAMED BY MEANING, NOT BY DURATION. A call site says what just
+   happened ('success', 'warning'), never how long to buzz. That is what
+   lets the feel be retuned in this one table without touching the game,
+   and it is what maps cleanly onto the native APIs, which are themselves
+   semantic (impact LIGHT/MEDIUM/HEAVY, notification SUCCESS/WARNING).
+   ===================================================================== */
+const HAPTIC={
+  // gap = minimum spacing in SECONDS between two plays of that kind, exactly
+  // like SFX[].gap. ms = the web fallback pattern, in milliseconds.
+  // nfn/narg = what the native bridge is asked for at the seam below.
+  light  :{gap:0.07,ms:10,          nfn:'impact',      narg:{style:'LIGHT'}},
+  medium :{gap:0.07,ms:20,          nfn:'impact',      narg:{style:'MEDIUM'}},
+  heavy  :{gap:0.15,ms:35,          nfn:'impact',      narg:{style:'HEAVY'}},
+  success:{gap:0.15,ms:[18,55,28],  nfn:'notification',narg:{type:'SUCCESS'}},
+  warning:{gap:0.25,ms:[12,45,12],  nfn:'notification',narg:{type:'WARNING'}}
+};
+const hapticLast=Object.create(null);
+let hapticAt=-99;
+/* A THROTTLE CLOCK THAT THE HARNESSES CANNOT OUTRUN. Same reasoning as
+   sfx(): `npm run shots` virtualises BOTH Date.now and performance.now and
+   then runs hundreds of frames in a fraction of a second of wall time, so a
+   throttle on either of those would let a whole burst through. AC.currentTime
+   is not virtualised, so it is preferred whenever the audio context exists —
+   which is from the first real tap onwards, regardless of S.mute, because
+   unlockAudio() is unconditional. performance.now() is only the fallback for
+   a device with no Web Audio at all, where there is no better clock. */
+function hapticClock(){ return AC ? AC.currentTime : performance.now()/1000; }
+/* THE DISPATCHER. One guard expression covers all five ways this can be a
+   no-op: no state yet, the setting is off, no gesture has happened, the kind
+   is unknown, and the platform cannot vibrate at all. The whole body is in
+   try/catch and failure is always silent. */
+function haptic(kind){
+  try{
+    if(!S || !S.haptics || !USER_GESTURE) return;
+    const k=HAPTIC[kind]; if(!k) return;
+    /* THROTTLE — per kind, plus one global floor. A mass harvest fires
+       'light' dozens of times in a second; a phone buzzing without pause is
+       strictly worse than no haptics at all, so both limits are real. */
+    const t=hapticClock();
+    if(t-(hapticLast[kind]||-99)<k.gap) return;
+    if(t-hapticAt<0.05) return;
+    hapticLast[kind]=t; hapticAt=t;
+
+    /* ───────────── THE NATIVE SEAM — THE ONE PLACE TO WIRE iOS ─────────────
+       Everything above is platform-neutral. Everything below is the only
+       code in the file that talks to a vibration API, and the only code that
+       has to change when the native shell gains a Capacitor Haptics plugin:
+       drop the plugin in, and this branch starts firing on iOS. It is a few
+       lines HERE rather than a hunt through the file, which is the entire
+       point of routing every call site through one dispatcher.
+       The `.catch(()=>{})` is not optional: the plugin methods return
+       Promises, and an unhandled rejection is a PAGE ERROR that fails
+       `shots`, `probe` and `churn`. Resolved per call rather than cached,
+       because the bridge is injected asynchronously by the native shell and
+       may well not exist yet at the first call.                            */
+    const P=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Haptics;
+    if(P&&typeof P[k.nfn]==='function'){
+      const r=P[k.nfn](k.narg);
+      if(r&&typeof r.catch==='function') r.catch(()=>{});
+      return;
+    }
+    // WEB FALLBACK — Android only. Absent on iOS Safari and on a plain
+    // WKWebView, where this is simply skipped and the action is silent.
+    if(typeof navigator.vibrate==='function') navigator.vibrate(k.ms);
+    /* ─────────────────────── END OF THE NATIVE SEAM ─────────────────────── */
   }catch(e){}
 }
 function syncMuteBtn(){
@@ -3823,9 +4025,79 @@ function showNoWebGL(){
   if(el) el.classList.add('show');
 }
 
+/* =====================================================================
+   BROWSER GESTURES THE GAME NEVER WANTS
+   =====================================================================
+   Everything here is defence for the BROWSER build the owner tests on. The
+   shipped product is a native app, where the viewport meta's user-scalable=no
+   is honoured inside a WKWebView and none of this is reachable. It is kept
+   because the browser build is how the owner checks the game on their phone,
+   and a HUD that zooms out from under them makes the game untestable.
+
+   THE ONE RULE FOR THIS BLOCK: it must not cost the game its OWN two-finger
+   pinch, which zooms the camera and lives in initJoystick(). So nothing here
+   touches pointer events, and nothing here is added to #sceneWrap's handlers.
+   These are separate, Safari-proprietary events plus one dblclick guard. */
+function initGestureGuards(){
+  /* gesturestart / gesturechange / gestureend are Safari's own pinch events and
+     exist nowhere else — on any other browser these listeners simply never
+     fire, which is why no capability test is needed to make them harmless.
+     They are what actually zooms the PAGE on iOS once user-scalable=no has been
+     ignored, and preventDefault on them is the only thing that stops it.
+
+     {passive:false} is mandatory, not decoration: a listener the browser treats
+     as passive has its preventDefault() ignored outright, and this whole guard
+     would silently do nothing.
+
+     Preventing these does NOT cancel the pointer events Safari also emits for
+     the same fingers, so the game's own pinch still receives every move. */
+  const stop=e=>{ e.preventDefault(); };
+  for(const t of ['gesturestart','gesturechange','gestureend']){
+    document.addEventListener(t,stop,{passive:false});
+  }
+  /* DOUBLE-TAP ZOOM is a separate iOS gesture from pinch and has to be refused
+     separately. The heavy lifting is done in CSS — touch-action:none on html,
+     body and #app tells the browser it owns no gesture on this page at all,
+     double-tap included — and that is the mechanism to trust, because unlike a
+     touchend handler it cannot swallow a tap the game wanted.
+
+     This dblclick guard is the belt to that CSS's braces. It is safe by
+     construction: the game reads pointerdown / pointermove / pointerup and
+     never listens for dblclick anywhere, so cancelling it can not remove any
+     behaviour the game has. */
+  document.addEventListener('dblclick',stop,{passive:false});
+}
+
+/* PORTRAIT LOCK — best effort, and deliberately allowed to fail.
+   The owner's rule is that rotating the phone must never rotate the game. The
+   AUTHORITATIVE lock is in the native app configuration; this is the web-side
+   belt-and-braces for the browser build.
+
+   screen.orientation.lock() is absent on iOS Safari, and on the browsers that
+   do have it it REJECTS unless the page is fullscreen. Both are expected, and
+   both must be SILENT: an unhandled promise rejection counts as a page error
+   and would fail `npm run shots`, `npm run probe` and `npm run churn`. So the
+   call is wrapped twice over — a try/catch for a synchronous throw or a missing
+   API, and a .catch() on the promise for the asynchronous rejection. Neither
+   path reports anything, because neither is a fault. */
+function lockPortrait(){
+  try{
+    const so=(typeof screen!=='undefined')&&screen.orientation;
+    if(so&&typeof so.lock==='function'){
+      const p=so.lock('portrait');
+      if(p&&typeof p.catch==='function') p.catch(()=>{});
+    }
+  }catch(err){}
+}
+
 /* ---------- boot ---------- */
 const hasSave=load();
 if(!hasSave){ S=newState(); }
+
+// Both run before the WebGL branch: they are about the PAGE, not the 3D scene,
+// so they should apply just as much on the no-WebGL panel as in the game.
+initGestureGuards();
+lockPortrait();
 
 let booted=false;
 if(webglSupported()){
