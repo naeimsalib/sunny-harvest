@@ -3667,7 +3667,7 @@
 <!-- FORGE-LIB:END -->
 <!-- FACTORY-CHARACTERS:START -->
 <!-- Character registry written by the asset factory's Sunny Harvest adapter. DATA, NOT CODE: adding a character never means pasting JavaScript here. -->
-<script id="factoryCharacters" type="application/json">{"baker":{"rig":{"HIP_Y":0.5733,"LEG_X":0.1453,"ARM_X":0.2077,"SHOULDER_LOCAL":0.4825,"NECK_LOCAL":0.531,"KNEE_LOCAL":-0.2753,"ELBOW_LOCAL":-0.2294},"parts":["baker_ankle","baker_apron","baker_apronbib","baker_apronstrap","baker_arm","baker_belt","baker_blush","baker_boot","baker_brows","baker_collar","baker_ears","baker_eyes","baker_forearm","baker_hair","baker_hand","baker_head","baker_hips","baker_leg","baker_mouth","baker_nose","baker_shin","baker_shoulder","baker_sleeve","baker_sole","baker_torso"],"sockets":["socket_back","socket_hand_l","socket_hand_r","socket_head","socket_hip"],"placement":{"scene":"farm","position":[6.4,0,-3.2],"rotationY":0.62,"_why_rotation":"PHASE 9D, and this was free quality that nobody had noticed. She used to stand at 2.6 radians -- about 149 degrees -- which turned her almost fully AWAY from the camera. Her apron is the one garment that changes her silhouette and the single thing that says 'baker', and the player never saw it: in the game frame she read as a grey ball on a brown mass, which is very close to the complaint this whole phase was commissioned to answer. 0.62 radians is roughly 36 degrees, a three-quarter turn toward the camera -- it shows the apron and the collar while still reading as a person standing in a world rather than posing for the lens. No amount of art could have fixed this, because the art was never in view.","scale":1.0,"behavior":"stationary_npc","blocker":{"radius":0.55}}},"courier":{"rig":{"HIP_Y":0.9406,"LEG_X":0.1291,"ARM_X":0.2661,"SHOULDER_LOCAL":0.3475,"NECK_LOCAL":0.4073,"KNEE_LOCAL":-0.375,"ELBOW_LOCAL":-0.2371},"parts":[],"sockets":[],"animationMode":"SKELETAL","clips":[{"name":"idle","frames":48,"fps":24,"loop":true},{"name":"walk","frames":24,"fps":24,"loop":true}],"placement":{"scene":"farm","position":[1.0,0,-8.0],"rotationY":0,"scale":1.0,"behavior":"patrol","clip":"walk","_why_patrol":"The courier is the first SKELETAL character, and the point of a skeletal rig is deformation you can only see in MOTION. Standing them still would hide the whole thing the rig exists for, so they walk a lane. NO BLOCKER on purpose: a collision disc is placed once at spawn and never moves, so a walking NPC with one would leave an invisible wall standing where it started.","_why_here":"x=1 was measured, not guessed: sweeping every lane against the game's own 49 collision discs, it is the clearest line through the middle of the farm at 4.85 units of clearance. The first attempt at x=-6.2 looked like open grass in a screenshot and walked the courier straight through the produce stall.","patrol":{"speed":1.15,"path":[[1.0,-8.0],[1.0,6.0]]}}},"hero-farmer":{"rig":{},"parts":[],"sockets":[],"animationMode":"SKELETAL","clips":[{"name":"walk","frames":0,"fps":24,"loop":true},{"name":"run","frames":0,"fps":24,"loop":true}],"_source":"Asset Factory V2. Meshy multi-image-to-3d from the approved Orchardist turnaround, auto-rigged to a 24-bone Mixamo-named skeleton, welded, decimated 118,914 -> 8,999 triangles, one material, 1024 texture. FIRST TEXTURED CHARACTER IN THE GAME.","placement":{"scene":"farm","position":[-3.0,0,-8.0],"rotationY":0,"scale":1.0,"behavior":"patrol","clip":"walk","_why_patrol":"Same reasoning as the courier: a skeletal rig only proves itself in motion. Walking also exercises the deformation of a decimated skinned mesh, which is the thing most likely to have been damaged by dropping 110,000 triangles.","_why_lane":"x=-3.0 is a parallel lane to the courier's proven x=1.0, far enough that the two never overlap on screen and their silhouettes can be compared side by side.","patrol":{"speed":1.0,"path":[[-3.0,-8.0],[-3.0,6.0]]}}}}</script>
+<script id="factoryCharacters" type="application/json">{"baker":{"rig":{"HIP_Y":0.5733,"LEG_X":0.1453,"ARM_X":0.2077,"SHOULDER_LOCAL":0.4825,"NECK_LOCAL":0.531,"KNEE_LOCAL":-0.2753,"ELBOW_LOCAL":-0.2294},"parts":["baker_ankle","baker_apron","baker_apronbib","baker_apronstrap","baker_arm","baker_belt","baker_blush","baker_boot","baker_brows","baker_collar","baker_ears","baker_eyes","baker_forearm","baker_hair","baker_hand","baker_head","baker_hips","baker_leg","baker_mouth","baker_nose","baker_shin","baker_shoulder","baker_sleeve","baker_sole","baker_torso"],"sockets":["socket_back","socket_hand_l","socket_hand_r","socket_head","socket_hip"],"placement":{"scene":"farm","position":[6.4,0,-3.2],"rotationY":0.62,"_why_rotation":"PHASE 9D, and this was free quality that nobody had noticed. She used to stand at 2.6 radians -- about 149 degrees -- which turned her almost fully AWAY from the camera. Her apron is the one garment that changes her silhouette and the single thing that says 'baker', and the player never saw it: in the game frame she read as a grey ball on a brown mass, which is very close to the complaint this whole phase was commissioned to answer. 0.62 radians is roughly 36 degrees, a three-quarter turn toward the camera -- it shows the apron and the collar while still reading as a person standing in a world rather than posing for the lens. No amount of art could have fixed this, because the art was never in view.","scale":1.0,"behavior":"stationary_npc","blocker":{"radius":0.55}}},"courier":{"rig":{"HIP_Y":0.9406,"LEG_X":0.1291,"ARM_X":0.2661,"SHOULDER_LOCAL":0.3475,"NECK_LOCAL":0.4073,"KNEE_LOCAL":-0.375,"ELBOW_LOCAL":-0.2371},"parts":[],"sockets":[],"animationMode":"SKELETAL","clips":[{"name":"idle","frames":48,"fps":24,"loop":true},{"name":"walk","frames":24,"fps":24,"loop":true}],"placement":{"scene":"farm","position":[1.0,0,-8.0],"rotationY":0,"scale":1.0,"behavior":"patrol","clip":"walk","_why_patrol":"The courier is the first SKELETAL character, and the point of a skeletal rig is deformation you can only see in MOTION. Standing them still would hide the whole thing the rig exists for, so they walk a lane. NO BLOCKER on purpose: a collision disc is placed once at spawn and never moves, so a walking NPC with one would leave an invisible wall standing where it started.","_why_here":"x=1 was measured, not guessed: sweeping every lane against the game's own 49 collision discs, it is the clearest line through the middle of the farm at 4.85 units of clearance. The first attempt at x=-6.2 looked like open grass in a screenshot and walked the courier straight through the produce stall.","patrol":{"speed":1.15,"path":[[1.0,-8.0],[1.0,6.0]]}}}}</script>
 <!-- FACTORY-CHARACTERS:END -->
 <!-- FACTORY-OBJECTS:START -->
 <!-- World-object registry written by the asset factory's Sunny Harvest adapter. DATA, NOT CODE: placing a forged prop or plant never means pasting JavaScript here. One entry per asset, one `placements` item per standing copy. -->
@@ -3687,7 +3687,7 @@
      URL can never point at anything but the bytes it was named for. Machine-written. -->
 <!-- FORGE-EXTERNAL:START -->
 <!-- 2 external model(s). The BYTES are not here: each is published as assets/<name>.<contenthash>.glb, an immutable URL that is never reused for different content. Machine-written by tools/bake-assets.js — do not edit by hand. -->
-<script id="factoryAssets" type="application/json">{"courier":{"url":"assets/courier.4a4bd3558d53.glb","sha256":"4a4bd3558d533757b67abbad6d346c4bd90524fd92eaef1765e1fd9b0098c92a","bytes":198136},"hero-farmer":{"url":"assets/hero-farmer.90e65c1ea42a.glb","sha256":"90e65c1ea42a588c2051451d09cd7822d6c29baa3c5d6218052db9fe0aaa7b70","bytes":641924}}</script>
+<script id="factoryAssets" type="application/json">{"courier":{"url":"assets/courier.4a4bd3558d53.glb","sha256":"4a4bd3558d533757b67abbad6d346c4bd90524fd92eaef1765e1fd9b0098c92a","bytes":198136},"hero-farmer":{"url":"assets/hero-farmer.b24c96f2b80c.glb","sha256":"b24c96f2b80c462574b36170c3277dad8e9709820798830693ffa071ba3e28eb","bytes":697732}}</script>
 <!-- FORGE-EXTERNAL:END -->
 
 <style>
@@ -5993,6 +5993,28 @@ function makeFarmer(){
   return makeRiggedCharacter('farmer', factoryRig('farmer')||FARMER_RIG_FALLBACK);
 }
 
+/* THE PLAYER, BUILT FROM A SKINNED MODEL.
+
+   makeRiggedCharacter() hands back a bag of separate limbs that updateCharacter()
+   rotates one at a time. A generated character is ONE continuous skinned mesh --
+   there is no `legL` to rotate -- so it carries its movement as baked clips and a
+   mixer plays them instead.
+
+   The two are swapped behind the SAME shape: root, heading, vel, runPhase, dustT.
+   Everything downstream -- the camera follow, collision, save/load, dust, the task
+   probe -- reads those and neither knows nor cares which kind it got. `skeletal`
+   is the only new field, and it is the flag updateCharacter() branches on.
+
+   `sockets` is deliberately an empty object rather than absent: the hat-attachment
+   comment promises `sockets.head` exists, and a missing object would throw where an
+   empty one simply attaches nothing. */
+function makeSkeletalPlayer(name){
+  const sk=makeSkeletalCharacter(name);
+  if(!sk) return null;
+  return { root:sk.root, skeletal:sk, sockets:{},
+           runPhase:0, heading:0, vel:{x:0,z:0}, dustT:0 };
+}
+
 /* GENERATED NPCs — one generic path, not a patch per character.
 
    The factory publishes an asset, the adapter registers it here as data, and this walks the
@@ -6591,7 +6613,10 @@ function buildWorld(){
 
   initDust();
 
-  FarmerRig=makeFarmer();
+  /* The generated farmer if it loaded, the old one if it did not. A missing
+     external model must degrade to the previous character, never to no player at
+     all -- the same rule every other forged asset here follows. */
+  FarmerRig=makeSkeletalPlayer('hero-farmer')||makeFarmer();
   // Generated NPCs are spawned from the registry, after the player exists so the two cannot
   // race for the same blocker list.
   spawnGeneratedCharacters();
@@ -6606,7 +6631,18 @@ function buildWorld(){
   // shrinks everything equally. The two compound on the ABSOLUTE size, and that
   // is measured rather than eyeballed — see docs/ART-REFERENCE.md and
   // `npm run measure`.
-  FarmerRig.root.scale.setScalar(1.16);
+  /* 1.16 is the OLD farmer's number: 1.55 x 0.75, answering "the character is
+     pretty large compared to everything around it". It describes that model's
+     proportions, not a world rule, and applying it to a character already built at
+     a true 1.75 m would shrink him below everything he stands next to. The
+     generated farmer is authored at real scale, so he takes none of it. */
+  /* MEASURED, NOT CHOSEN. The generated farmer stands 1.55 units in his own file
+     and rendered at 5.9% of screen height; the shipped farmer the owner approved
+     sits at 8.6%. 8.6 / 5.9 = 1.46. Re-derive it with `npm run measure` if the
+     model, the camera or the zoom ever changes — never eyeball it, because camera
+     distance and character scale compound and a 25% smaller farmer seen from 30%
+     closer looks identical. */
+  FarmerRig.root.scale.setScalar(FarmerRig.skeletal ? 1.46 : 1.16);
   scene.add(FarmerRig.root);
   S.sheep.forEach(()=>spawnSheep3D());
 }
@@ -7548,6 +7584,28 @@ function updateCharacter(dt,t){
   R.root.rotation.y=R.heading;
 
   const k=Math.min(1,speed/WALK_SPEED);
+
+  /* A SKINNED PLAYER HAS NO LIMBS TO ROTATE. Its movement lives in baked clips,
+     so the job here is choosing which one and letting the mixer do the rest.
+     Thresholds: below 0.06 the character is standing, so idle; above 0.55 the
+     stride is long enough that walk starts to slide and run reads better. The
+     crossfade is short enough to feel responsive and long enough not to pop. */
+  if(R.skeletal){
+    R.skeletal.mixer.update(dt);
+    playClip(R.skeletal, k>0.55?'run':(k>0.06?'walk':'idle'), 0.18);
+    R.dustT-=dt;
+    if(k>0.35 && R.dustT<=0){ R.dustT=0.14; spawnDust(R.root.position.x,R.root.position.z); }
+    dust.forEach(d=>{
+      if(d.life>0){
+        d.life-=dt;
+        d.m.scale.setScalar(0.5+ (0.55-d.life)*2.6);
+        d.m.material.opacity=Math.max(0,d.life/0.55*0.7);
+        if(d.life<=0) d.m.visible=false;
+      }
+    });
+    return;
+  }
+
   R.runPhase+=dt*(3.2+10.5*k);
   const swing=Math.sin(R.runPhase)*(0.10+1.05*k);
   R.legL.rotation.x=swing;
