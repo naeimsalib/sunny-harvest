@@ -3687,7 +3687,7 @@
      URL can never point at anything but the bytes it was named for. Machine-written. -->
 <!-- FORGE-EXTERNAL:START -->
 <!-- 2 external model(s). The BYTES are not here: each is published as assets/<name>.<contenthash>.glb, an immutable URL that is never reused for different content. Machine-written by tools/bake-assets.js — do not edit by hand. -->
-<script id="factoryAssets" type="application/json">{"courier":{"url":"assets/courier.4a4bd3558d53.glb","sha256":"4a4bd3558d533757b67abbad6d346c4bd90524fd92eaef1765e1fd9b0098c92a","bytes":198136},"hero-farmer":{"url":"assets/hero-farmer.b24c96f2b80c.glb","sha256":"b24c96f2b80c462574b36170c3277dad8e9709820798830693ffa071ba3e28eb","bytes":697732}}</script>
+<script id="factoryAssets" type="application/json">{"courier":{"url":"assets/courier.4a4bd3558d53.glb","sha256":"4a4bd3558d533757b67abbad6d346c4bd90524fd92eaef1765e1fd9b0098c92a","bytes":198136},"hero-farmer":{"url":"assets/hero-farmer.6eaca4b20d3b.glb","sha256":"6eaca4b20d3bf9f8d8320ec7f4409e6060e04f1dc14f29d0203511395ee8fb2a","bytes":697892}}</script>
 <!-- FORGE-EXTERNAL:END -->
 
 <style>
@@ -6637,12 +6637,15 @@ function buildWorld(){
      a true 1.75 m would shrink him below everything he stands next to. The
      generated farmer is authored at real scale, so he takes none of it. */
   /* MEASURED, NOT CHOSEN. The generated farmer stands 1.55 units in his own file
-     and rendered at 5.9% of screen height; the shipped farmer the owner approved
-     sits at 8.6%. 8.6 / 5.9 = 1.46. Re-derive it with `npm run measure` if the
+     and rendered at 10.9% of screen height once the instrument could see him at
+     all; the shipped farmer the owner approved sits at 8.6%. 1.46 x 8.6 / 10.9 =
+     1.15. An earlier 1.46 came from a build whose armature scale had been baked
+     flat, which broke the animations, so that number described a broken model.
+     Re-derive it with `npm run measure` if the
      model, the camera or the zoom ever changes — never eyeball it, because camera
      distance and character scale compound and a 25% smaller farmer seen from 30%
      closer looks identical. */
-  FarmerRig.root.scale.setScalar(FarmerRig.skeletal ? 1.46 : 1.16);
+  FarmerRig.root.scale.setScalar(FarmerRig.skeletal ? 1.15 : 1.16);
   scene.add(FarmerRig.root);
   S.sheep.forEach(()=>spawnSheep3D());
 }
