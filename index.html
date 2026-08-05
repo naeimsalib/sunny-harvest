@@ -4442,7 +4442,7 @@ html,body{margin:0;height:100%;overflow:hidden;touch-action:none;
       <span id="coinCount">0</span>
     </div>
   </div>
-  <div id="verTag">v7.5</div>
+  <div id="verTag">v7.6</div>
   <div id="noWebGL">
     <div class="emoji">🌾</div>
     <h1>This browser can't show the farm</h1>
@@ -6898,13 +6898,35 @@ function buildWorld(){
   for(let i=0;i<FARM.maxPlots;i++){
     const p=plotWorldPos(i);
     const g=new THREE.Group(); g.position.set(p.x,0,p.z);
-    const soil=new THREE.Mesh(new THREE.BoxGeometry(8,0.5,8),M(0x8d5a30));
-    soil.position.y=0.25; soil.receiveShadow=true; soil.castShadow=true; g.add(soil);
-    const top=new THREE.Mesh(new THREE.BoxGeometry(7.4,0.16,7.4),M(0xa8703f));
-    top.position.y=0.55; top.receiveShadow=true; g.add(top);
+    /* BED HEIGHT — measured against the farmer, not chosen by eye.
+
+       It was 0.63 to the top of the rows, and it SWALLOWED HIM. The owner:
+       "the farm land itself is not good, it is too high and when the user
+       walks on it it hides him." Confirmed in a screenshot: standing at a bed
+       edge, the farmer's legs and boots disappear behind the soil wall.
+
+       The farmer is 1.75 tall, so 0.63 hid the bottom 36% of him -- everything
+       below the knee. BED_H of 0.22 hides 13%, which is the soles of his
+       boots, and reads as a man standing ankle-deep in tilled earth rather
+       than as a man sinking into the ground.
+
+       NOT MADE SOLID, deliberately, though "solid" was on the list this came
+       from. Six beds of 8x8 sit on a 9.5 grid, so there are only 1.5 units
+       between them and the player is 0.84 across. Blocking them would turn the
+       farm into a corridor maze and could wedge the player between two beds. A
+       low bed you simply walk over is both the simpler fix and the right one.
+
+       Every number below is derived from BED_H so the bed cannot come apart
+       when it is retuned -- the previous version stated four heights
+       independently and the crop slots had to agree with all of them. */
+    const BED_H=0.22;
+    const soil=new THREE.Mesh(new THREE.BoxGeometry(8,BED_H*0.8,8),M(0x8d5a30));
+    soil.position.y=BED_H*0.4; soil.receiveShadow=true; soil.castShadow=true; g.add(soil);
+    const top=new THREE.Mesh(new THREE.BoxGeometry(7.4,BED_H*0.3,7.4),M(0xa8703f));
+    top.position.y=BED_H*0.85; top.receiveShadow=true; g.add(top);
     for(let r=0;r<4;r++){
-      const row=new THREE.Mesh(new THREE.BoxGeometry(7.4,0.07,0.42),M(0x946135));
-      row.position.set(0,0.63,-2.4+r*1.6); g.add(row);
+      const row=new THREE.Mesh(new THREE.BoxGeometry(7.4,0.035,0.42),M(0x946135));
+      row.position.set(0,BED_H+0.01,-2.4+r*1.6); g.add(row);
     }
     const lock=new THREE.Mesh(new THREE.BoxGeometry(1.5,1.5,0.4),M(0x8a7a64));
     lock.position.y=1.9; lock.visible=false; g.add(lock);
@@ -6914,13 +6936,13 @@ function buildWorld(){
       CROP_SLOTS.push({
         plot:i,
         x:p.x-2.3+cx*2.3,
-        y:0.62,                       // the top face of the soil bed
+        y:BED_H+0.02,                 // the top face of the soil bed
         z:p.z-2.3+cz*2.3,
         ry:cropRnd()*6.3
       });
     }
     const ring=new THREE.Mesh(ringGeo,new THREE.MeshLambertMaterial({color:SRGB(0xffffff),transparent:true,opacity:0.85}));
-    ring.rotation.x=-Math.PI/2; ring.position.y=0.72; ring.visible=false; g.add(ring);
+    ring.rotation.x=-Math.PI/2; ring.position.y=BED_H+0.09; ring.visible=false; g.add(ring);
     g.userData={type:'plot',idx:i,lock,ring};
     scene.add(g); plots3D.push(g);
   }
@@ -7431,6 +7453,32 @@ function ringFence(zone){
         len:len
       });
     }
+    /* MAKE IT SOLID. The owner: "fences can be done through which it should
+       not." They were the only structure in the game with no collision at all
+       -- barn, silo, well, stall, wheelbarrow, hay, trees, rocks and bushes
+       were all blocked, and the fence just was not.
+
+       Blocked HERE, inside rail(), rather than in a separate pass, so the
+       barrier and the thing you can see can never disagree: one call draws a
+       span and stops you crossing it.
+
+       THE TWO NUMBERS ARE CHOSEN AGAINST THE PLAYER, not guessed. To squeeze
+       between two discs you need a gap wider than the player's 0.84 diameter,
+       and that gap is STEP - 2*R. At R=0.22 and STEP=1.0 the gap is 0.56, so
+       0.84 cannot pass -- with margin, but without the thousand discs a
+       shoulder-to-shoulder line would cost. The player comes to rest
+       R + PLAYER_R = 0.64 from the rail, which stops him just clear of it
+       rather than with his arm through it.
+
+       Cost: about 250 extra discs across both zones. resolveBlockers() breaks
+       out of its loop the moment nothing moved, so the ordinary frame walks
+       the list once. */
+    const R=0.22, STEP=1.0;
+    const n=Math.max(2,Math.ceil(len/STEP));
+    for(let i=0;i<n;i++){
+      const t=i/(n-1);
+      blocker(x1+(x2-x1)*t, z1+(z2-z1)*t, R);
+    }
   }
   const post=(x,z,s)=>{
     FENCE_POSTS.push({x:x, z:z, s:s||1});
@@ -7498,6 +7546,24 @@ function spawnSheep3D(){
      against; standing a real sheep next to a real person is what made it
      obvious. The generated model is 1.15, so this puts it at 1.09: about chest
      height on the farmer, which is what a sheep is. */
+  /* A MOVING BLOCKER, and the only one in the game.
+
+     Every other blocker is a fixed disc written once by buildWorld(). A sheep
+     wanders, so its disc has to follow it -- the object below is pushed into
+     BLOCKERS once and then has its x and z rewritten each frame in the flock
+     tick. BLOCKERS holds references, so no rebuild is needed and the cost is
+     two assignments per sheep per frame.
+
+     Safe against BLOCKERS being cleared, because buildWorld() empties the list
+     and then spawns the flock, in that order.
+
+     0.42 rather than the sheep's full half-width. A sheep is about a metre
+     across, but blocking the whole of it makes five wandering animals into
+     five roadblocks in a small meadow. At 0.42 the player stops 0.84 from the
+     centre -- against its flank rather than its nose -- so you cannot walk
+     THROUGH a sheep, but you can always get past one. */
+  sh.userData.blocker={x:sh.position.x, z:sh.position.z, r:0.42};
+  BLOCKERS.push(sh.userData.blocker);
   sh.scale.setScalar(0.95);
   scene.add(sh); sheep3D.push(sh);
 }
@@ -8781,6 +8847,11 @@ function updateWorldLife(dt,t){
       sh.rotation.y+=shortestAngle(Math.atan2(dx,dz)+SHEEP_FACING-sh.rotation.y)*Math.min(1,dt*4);
       sh.position.y=Math.abs(Math.sin(t*7+i))*0.08;
     } else sh.position.y*=0.9;
+    // Drag this sheep's collision disc along with it. See the note beside
+    // where it is created in spawnSheep3D(): BLOCKERS holds the reference, so
+    // moving the sheep is two assignments rather than a rebuild.
+    const bl=sh.userData.blocker;
+    if(bl){ bl.x=sh.position.x; bl.z=sh.position.z; }
     const mk=sh.userData.marker;
     if(mk.visible){ mk.position.y=SHEEP_MARK_Y+Math.sin(t*4+i)*0.2; mk.rotation.y+=dt*2; }
   });
