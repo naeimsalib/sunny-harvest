@@ -3866,7 +3866,13 @@ html,body{margin:0;height:100%;overflow:hidden;touch-action:none;
    That exact mistake was made here and caught by `npm run serve`. */
 #verTag{position:absolute;right:11px;bottom:calc(env(safe-area-inset-bottom) + 9px);
   font-size:calc(10px * var(--ui));font-weight:800;color:rgba(74,60,40,0.5);
-  text-shadow:0 1px 0 rgba(255,255,255,0.45);pointer-events:none;z-index:20;}
+  /* pointer-events:auto ONLY so the dev coin shortcut can be tapped — see
+     [DEV-CHEAT] in initSettings(). It was `none`, and the cost of changing it
+     is that taps in this one corner no longer reach the world behind it. The
+     badge is about 30x14 CSS pixels in the very corner, which is the smallest
+     target on screen and nothing is placed under it, so the trade is fine —
+     but it goes back to `none` when the cheat is removed. */
+  text-shadow:0 1px 0 rgba(255,255,255,0.45);pointer-events:auto;z-index:20;}
 
 /* Shown only when the device cannot give us a 3D context. Opaque and above
    everything (the max z-index elsewhere is 200) so no HUD fragment shows
@@ -4442,7 +4448,7 @@ html,body{margin:0;height:100%;overflow:hidden;touch-action:none;
       <span id="coinCount">0</span>
     </div>
   </div>
-  <div id="verTag">v7.6</div>
+  <div id="verTag">v7.7</div>
   <div id="noWebGL">
     <div class="emoji">🌾</div>
     <h1>This browser can't show the farm</h1>
@@ -9869,7 +9875,62 @@ function doReset(){
   Store.del('sunny_save_3d');
   location.reload();
 }
+/* ===================================================================
+   [DEV-CHEAT] TESTING SHORTCUT — REMOVE BEFORE ANY STORE SUBMISSION.
+   ===================================================================
+   Tap the version badge in the bottom-right corner five times quickly and it
+   grants a million coins. Asked for by the owner so late-game content can be
+   reached without playing twenty minutes to get there.
+
+   WHY IT IS IN THE GAME AT ALL, when a bookmarklet did the same job: the
+   bookmarklet worked, and setting it up on a phone means editing a bookmark's
+   address by hand, which is fiddly enough to be a tax on every test.
+
+   THE FIRST ATTEMPT AT THIS WAS A BOOKMARKLET THAT EDITED localStorage
+   DIRECTLY, AND IT SILENTLY DID NOTHING. The game saves on unload, so
+   reloading wrote the old balance straight back over the edit. Anything that
+   changes the save has to go through save() while the game is running, which
+   is what this does -- and it is why there is no reload here.
+
+   TO REMOVE IT: delete this block, and set #verTag back to
+   pointer-events:none. Search the file for DEV-CHEAT; a build check asserts
+   that this marker and that CSS agree, so neither can be half-removed.
+
+   It ships publicly on the preview link, so anyone who taps the corner five
+   times gets coins. That is acceptable while nothing is bought with real
+   money and the link is a preview; it is NOT acceptable in a store build. */
+function initDevCheat(){
+  const badge=$('#verTag');
+  if(!badge) return;
+  let taps=0, last=0;
+  badge.addEventListener('pointerdown',function(e){
+    // Must not reach #sceneWrap, whose pointerdown starts a joystick drag --
+    // the same reason every world button stops propagation.
+    e.stopPropagation();
+    const now=performance.now();
+    /* A gap longer than this starts the count again, so stray taps in the
+       corner can never accumulate into a grant across a whole session.
+
+       2500ms, not the 1500 this started at. The target is 18x16 CSS pixels in
+       the very corner of the screen -- the smallest thing in the game -- so a
+       real finger misses it, adjusts and tries again, and a tight window turns
+       that into "the cheat doesn't work". Five deliberate taps on a corner
+       badge is not something anyone does by accident at any window length,
+       so the looser one costs nothing. */
+    taps = (now - last > 2500) ? 1 : taps + 1;
+    last = now;
+    if(taps < 5) return;
+    taps = 0;
+    S.coins += 1000000;
+    save();                      // through the game's own save, never storage
+    renderAll();
+    bump($('#coinPill'));
+    sfx('coinPour'); haptic('light');
+    farmerSay('Dev: +1,000,000 🪙');
+  });
+}
 function initSettings(){
+  initDevCheat();
   const gear=$('#gearBtn');
   if(gear) gear.addEventListener('pointerdown',e=>{
     e.stopPropagation();          // must not reach #sceneWrap's joystick
