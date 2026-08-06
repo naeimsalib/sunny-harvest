@@ -4459,7 +4459,7 @@ html,body{margin:0;height:100%;overflow:hidden;touch-action:none;
       <span id="coinCount">0</span>
     </div>
   </div>
-  <div id="verTag">v8.5</div>
+  <div id="verTag">v8.6</div>
   <div id="noWebGL">
     <div class="emoji">🌾</div>
     <h1>This browser can't show the farm</h1>
@@ -7575,14 +7575,29 @@ function buildWorld(){
      SIGN_BOARD_Y in the model's own coordinates, which is the height the
      sprite has to sit at — stated once here so the two cannot drift apart. */
   const SIGN_BOARD_Y=4.4;
-  const placeSign=(text,x,z,spriteY)=>{
+  /* THE POST IS SCALED TO THE LABEL, not the other way round.
+
+     The first version put every label at the board's own height, 4.4 — and
+     that quietly undid a fix: the MEADOW sign was deliberately lowered to 2.7
+     and brought 10 units forward because at 4.4 it sits behind the task card,
+     which is BACKLOG 3.6 and cost a round to diagnose. Putting a post under it
+     is no reason to hide it again.
+
+     So each sign keeps the height it was tuned to, and the post shrinks so its
+     board arrives there. A smaller waymarker at the meadow reads as
+     deliberate; a label floating off its own board does not. */
+  const placeSign=(text,x,z,boardY)=>{
     const post=forge('signpost');
-    if(post){ post.position.set(x,0,z); scene.add(post); blocker(x,z,0.45); }
+    if(post){
+      const k=boardY/SIGN_BOARD_Y;
+      post.position.set(x,0,z);
+      if(Math.abs(k-1)>0.01) post.scale.setScalar(k);
+      scene.add(post);
+      blocker(x,z,0.45*Math.max(k,0.6));
+    }
     const sg=makeSign(text);
-    // With a post under it the label sits at the board's height; with no model
-    // it keeps the height it always had, so a missing asset costs the post and
-    // not the signage.
-    sg.position.set(x, post?SIGN_BOARD_Y:spriteY, z + (post?0.18:0));
+    // Slightly in front of the board so the label cannot z-fight with it.
+    sg.position.set(x, boardY, z + (post?0.18:0));
     scene.add(sg);
     return sg;
   };
