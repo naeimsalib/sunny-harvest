@@ -4459,7 +4459,7 @@ html,body{margin:0;height:100%;overflow:hidden;touch-action:none;
       <span id="coinCount">0</span>
     </div>
   </div>
-  <div id="verTag">v8.7</div>
+  <div id="verTag">v8.6</div>
   <div id="noWebGL">
     <div class="emoji">🌾</div>
     <h1>This browser can't show the farm</h1>
@@ -4574,17 +4574,7 @@ const TASK_CHAIN = [
   { id:'t8',  icon:'⏱️', title:'Buy Faster Growth Lv 2',     type:'state',   now:s=>s.upgLevels.speed, goal:2, check:s=>s.upgLevels.speed>=2, rMin:1.5 },
   { id:'t9',  icon:'💰', iconAsset:'coin', title:'Collect 1,800 coins',        type:'counter', ev:'coins',   n:1800, rMin:1.8 },
   { id:'t10', icon:'🌻', title:'Better Seeds — Sunflowers', type:'state',  now:s=>s.cropTier, goal:2, check:s=>s.cropTier>=2, rMin:2.0 },
-  /* WAS "Buy the Harvest Bot". Automation is earned now, not bought, so the
-     task is the EARNING: harvest enough and a farmhand turns up. The progress
-     bar reads lifeHarvest so the player can see the visitor coming; the
-     completion check reads the worker actually having arrived, which is a
-     different thing on purpose -- WORKER_MILESTONES grants the worker and this
-     follows it rather than duplicating its threshold.
-     KEPT ON ONE LINE like every other entry: tools/verify-flow.js parses these
-     definitions out of this file with a regex to prove the model and the game
-     agree, and a wrapped definition is invisible to it. Three model checks
-     failed on exactly that before this was flattened. */
-  { id:'t11', icon:'🧑‍🌾', title:'Earn a farmhand',            type:'state',   now:s=>s.lifeHarvest, goal:40, check:s=>(s.workers||[]).length>=1, rMin:2.0 },
+  { id:'t11', icon:'🤖', title:'Buy the Harvest Bot',        type:'state',   check:s=>s.upgLevels.auto>=1, rMin:2.0 },
   { id:'t12', icon:'📺', title:'Watch 2 ads',                type:'counter', ev:'ad',      n:2,   rMin:2.5 },
   { id:'t13', icon:'🟫', title:'Fill the farm — 6 plots',    type:'state',   now:s=>s.unlockedPlots, goal:6, check:s=>s.unlockedPlots>=6, rMin:2.5 },
   { id:'t14', icon:'💰', iconAsset:'coin', title:'Collect 7,000 coins',        type:'counter', ev:'coins',   n:7000, rMin:2.5 },
@@ -4623,7 +4613,7 @@ const TASK_CHAIN = [
 const TASK_PAN={
   t1:'farm.beds',   t2:'plot',         t3:'farm.beds',    t4:'farm.seeds',
   t5:'farm.beds',   /* t6 = ad */      t7:'plot',         t8:'farm.speed',
-  t9:'farm.beds',   t10:'farm.seeds',  t11:'farm.beds',   /* t12 = ad */
+  t9:'farm.beds',   t10:'farm.seeds',  t11:'farm.auto',   /* t12 = ad */
   t13:'plot',       t14:'farm.beds',   t15:'meadow.open', t16:'meadow.sheep',
   t17:'meadow.sheep', t18:'meadow.sheep', /* t19 = ad */  t20:'meadow.sheep',
   t21:'meadow.wool', t22:'farm.beds',  t23:'meadow.sheep', t24:'farm.beds'
@@ -4937,23 +4927,6 @@ function newState(){
     upgLevels:{plot:0,speed:0,seeds:0,auto:0},
     meadowOpen:false, sheep:[], meadowLv:{wool:0,shear:0,auto:0},
     autoTimer:0, boostUntil:0, superBotUntil:0,
-    /* THE WORKERS. Replaces the two "auto" upgrades, on the owner's brief:
-       "I want to remove the option of doing this and integrate workers, (NPC)
-       where the character unlocks but not on demand, after a certain point of
-       the game, where they get to do something and then get rewarded by
-       getting a visitor."
-
-       So a worker is EARNED, never bought. Each entry is
-       {role:'harvest'|'shear', at:<Clock.now() when they arrived>} and the
-       count of a role is exactly what the old bot LEVEL used to be — see
-       workerLevel(). Keeping the throughput identical is deliberate: it means
-       the only thing this change moves is how automation is ACQUIRED, and any
-       drift the economy model reports afterwards is honestly attributable to
-       the missing coin sink rather than to a rate I also changed. */
-    workers:[],
-    // Lifetime counters, because the milestones are rewards for PLAYING and
-    // the per-task progress in taskProg resets with its task.
-    lifeHarvest:0, lifeWool:0,
     // Wool has its OWN collector and its own timers, deliberately separate from
     // the crop bot: each manual action gets its own automation (owner, 2026-07-31).
     woolTimer:0, woolBotUntil:0,
@@ -4999,65 +4972,7 @@ function superBotOn(){return now()<S.superBotUntil;}
 // The wool collector is independent of the crop bot. Buying the Harvest Bot must
 // not silently automate the meadow, and vice versa.
 function woolBotOn(){return now()<S.woolBotUntil;}
-/* HOW MANY WORKERS OF A ROLE, which is what the old bot LEVEL was.
-   The ad boosts still grant temporary full automation, and they do it by
-   answering 99 here rather than by touching S.workers -- a temporary hire is
-   not a person who arrived, and writing one into the save would leave a ghost
-   worker behind when the boost expired. */
-function workerLevel(role){
-  if(role==='harvest' && superBotOn()) return 99;
-  if(role==='shear'   && woolBotOn())  return 99;
-  let n=0; for(const w of S.workers) if(w.role===role) n++;
-  /* LEGACY BOT LEVELS COUNT AS WORKERS, and this IS the save migration.
-     A player who paid 350, 980 and 2,744 coins for three Harvest Bots must not
-     wake up with nothing because the shop that sold them is gone. Counting the
-     old level here means their automation keeps working at exactly the rate it
-     did, with no migration pass to write, nothing to run once and get wrong,
-     and no way for an un-migrated save to slip through. The fields stay in the
-     save and are simply never incremented again. */
-  const legacy = (role==='harvest') ? (S.upgLevels && S.upgLevels.auto|0)
-                                    : (S.meadowLv  && S.meadowLv.auto|0);
-  return n + (legacy||0);
-}
-function woolBotLevel(){return workerLevel('shear');}
-
-/* WHEN A WORKER TURNS UP. Each is a reward for something the player DID, never
-   something they bought.
-
-   The triggers are placed where the automation used to be affordable rather
-   than where they read nicely, so the pacing the 24-task chain was tuned
-   against is disturbed as little as possible. The first one lands around the
-   point the Harvest Bot used to be bought.
-
-   `max` caps each role at what the old upgrade capped at, so throughput can
-   never exceed what the economy was modelled with. */
-const WORKER_MILESTONES=[
-  { role:'harvest', max:3, when:s=>s.lifeHarvest>=40,
-    who:'A farmhand', why:'saw you working and wants to help with the crops' },
-  { role:'shear',   max:3, when:s=>s.meadowOpen && s.lifeWool>=15,
-    who:'A shepherd', why:'has heard about your flock and wants to help shear' },
-  { role:'harvest', max:3, when:s=>s.unlockedPlots>=FARM.maxPlots,
-    who:'A neighbour', why:'says a farm this size needs another pair of hands' },
-  { role:'harvest', max:3, when:s=>s.lifeHarvest>=400,
-    who:'A farmhand', why:'wants to join the harvest' },
-  { role:'shear',   max:3, when:s=>s.lifeWool>=200,
-    who:'A shepherd', why:'wants to help with the wool' }
-];
-/* Checked after anything that could satisfy one. Returns the arrivals so the
-   caller can announce them -- silently gaining automation would throw away the
-   whole point of the change, which is that the player SEES someone turn up. */
-function checkWorkerArrivals(){
-  const got=[];
-  for(let i=0;i<WORKER_MILESTONES.length;i++){
-    const m=WORKER_MILESTONES[i];
-    if(S.workers.some(w=>w.milestone===i)) continue;      // already arrived
-    if(workerLevel(m.role)>=m.max) continue;              // that job is full
-    if(!m.when(S)) continue;
-    S.workers.push({role:m.role, milestone:i, at:now()});
-    got.push(m);
-  }
-  return got;
-}
+function woolBotLevel(){return woolBotOn()?99:S.meadowLv.auto;}
 function upgCost(key){const c=FARM.costs[key];return Math.round(c.base*Math.pow(c.mult,S.upgLevels[key]));}
 function meadowCost(key){const c=MEADOW.costs[key];const lv=key==='sheep'?S.sheep.length:S.meadowLv[key];return Math.round(c.base*Math.pow(c.mult,lv));}
 
@@ -8983,7 +8898,8 @@ function buildAnchors(){
     pos:()=>({x:farmHub.x,y:5.0,z:farmHub.z})});
   itemAnchor(FARM_SHOP,'seeds',{icon:'🌱',up:true,group:'farm',stack:1,
     pos:()=>({x:farmHub.x,y:5.0,z:farmHub.z})});
-  // The Harvest Bot's button is gone with the item it bought.
+  itemAnchor(FARM_SHOP,'auto',{icon:'🤖',up:true,group:'farm',stack:2,
+    pos:()=>({x:farmHub.x,y:5.0,z:farmHub.z})});
 
   /* --- 4.4: the meadow ---
      "Unlock Meadow" and "Buy Sheep" share stack 0 deliberately: the unlock
@@ -8998,7 +8914,8 @@ function buildAnchors(){
     pos:()=>({x:meadowHub.x,y:5.0,z:meadowHub.z})});
   itemAnchor(MEADOW_SHOP,'shear',{icon:'✂️',up:true,group:'meadow',stack:2,
     pos:()=>({x:meadowHub.x,y:5.0,z:meadowHub.z})});
-  // The Wool Bot's button is gone with the item it bought.
+  itemAnchor(MEADOW_SHOP,'auto', {icon:'🤖',up:true,group:'meadow',stack:3,
+    pos:()=>({x:meadowHub.x,y:5.0,z:meadowHub.z})});
 
   /* --- 4B.1 / 4B.2: the "how long until…?" readouts ---
 
@@ -9578,37 +9495,6 @@ function farmerSay(msg,ms=1500){
 }
 function farmerCheer(){ farmerSay(['Yay! 🎉','Nice! ⭐','Great job! 🌟','Woohoo!'][Math.floor(Math.random()*4)]); }
 
-/* SOMEBODY TURNED UP WANTING WORK.
-
-   The owner's brief is that a worker is "rewarded by getting a visitor", so
-   the ARRIVAL is the moment the mechanic is sold and it must not be silent.
-   Gaining automation with no announcement would be indistinguishable from the
-   game quietly getting easier.
-
-   Deliberately the farmer's own speech bubble rather than a modal: the
-   arrivals land in the middle of play -- mid-harvest, mid-shear -- and a
-   dialog that demands a tap would interrupt the exact loop that earned it.
-   If more than one lands at once (possible when an old save is migrated) they
-   are announced one after another rather than merged, because two people
-   arriving is two events.
-
-   The bubble is the ONLY channel used, and that is a deliberate limit rather
-   than a finished design: this game has no toast or banner component, and
-   inventing one here would be a new piece of UI smuggled in under an economy
-   change. The arrival deserves a proper moment -- a visitor walking up the
-   path, a panel with a face -- and that is worth doing on its own. */
-function announceWorkers(arrivals){
-  if(!arrivals||!arrivals.length) return;
-  arrivals.forEach((m,i)=>{
-    setTimeout(()=>{
-      farmerSay(m.who+' joined the farm! 👋', 3000);
-      sfx('unlock'); haptic('medium');
-      renderAll();
-    }, i*3200);
-  });
-  save();
-}
-
 function updateWorldLife(dt,t){
   /* THE HARVEST POP. Until now a harvest happened entirely in the HUD -- coins
      flew, a number rose, the counter bumped -- and the BED, the thing actually
@@ -9788,8 +9674,6 @@ function harvest(i){
   const val=cropValue();
   S.coins+=val;
   taskEvent('coins',val);taskEvent('harvest',1);
-  S.lifeHarvest=(S.lifeHarvest|0)+1;
-  announceWorkers(checkWorkerArrivals());
   const wp=plotWorldPos(i);
   const sp=worldToScreen(wp.x,1.6,wp.z);
   popText(sp.x,sp.y,'+'+val,'#ffd44d');
@@ -9820,8 +9704,6 @@ function collectWool(i,silent){
   const val=woolValue();
   S.coins+=val;
   taskEvent('coins',val);taskEvent('wool',1);
-  S.lifeWool=(S.lifeWool|0)+1;
-  announceWorkers(checkWorkerArrivals());
   const m=sheep3D[i];
   if(m){
     const sp=worldToScreen(m.position.x,2.4,m.position.z);
@@ -9860,12 +9742,10 @@ const FARM_SHOP=[
    sub:()=>CROP_NAMES[FARM.crops[S.cropTier]]+(S.cropTier>=FARM.crops.length-1?' (best!)':' → '+CROP_NAMES[FARM.crops[S.cropTier+1]]),
    maxed:()=>S.cropTier>=FARM.crops.length-1,cost:()=>upgCost('seeds'),
    buy:()=>{S.upgLevels.seeds++;S.cropTier++;sync3DFarm();}},
-  /* THE HARVEST BOT IS NO LONGER FOR SALE. The owner: "for auto harvesting and
-     auto chearing I want to remove the option of doing this and integrate
-     workers, (NPC) where the character unlocks but not on demand ... they get
-     rewarded by getting a visitor."
-     Automation is now earned by playing -- see WORKER_MILESTONES. Anyone who
-     already bought a bot keeps it: workerLevel() counts the old level. */
+  {key:'auto',name:'Harvest Bot',icon:'🤖',
+   sub:()=>S.upgLevels.auto===0?'Harvests for you!':`Lv ${S.upgLevels.auto}`,
+   maxed:()=>S.upgLevels.auto>=FARM.costs.auto.max,cost:()=>upgCost('auto'),
+   buy:()=>{S.upgLevels.auto++;}}
 ];
 const MEADOW_SHOP=[
   {key:'open',name:'Unlock Meadow',icon:'🔓',
@@ -9891,8 +9771,11 @@ const MEADOW_SHOP=[
    buy:()=>{S.meadowLv.shear++;}},
   // The meadow's own bot. The farm has the Harvest Bot; the meadow has this.
   // Neither automates the other.
-  /* THE WOOL BOT IS NO LONGER FOR SALE EITHER -- same reason as the Harvest
-     Bot above. A shepherd turns up once the flock is earning. */
+  {key:'auto',name:'Wool Bot',icon:'🤖',
+   sub:()=>S.meadowLv.auto===0?'Collects wool for you!':`Lv ${S.meadowLv.auto}`,
+   maxed:()=>S.meadowLv.auto>=MEADOW.costs.auto.max,cost:()=>meadowCost('auto'),
+   locked:()=>!S.meadowOpen,
+   buy:()=>{S.meadowLv.auto++;}}
 ];
 /* renderShop() and updateShopButtons() USED TO LIVE HERE, and BACKLOG Phase 5.3
    deleted them. They were 2 of the 10 state+DOM fused functions named in
@@ -10861,15 +10744,11 @@ function tick(nowMs){
       const p=S.plots[i];
       if(!p.ready){p.progress+=dt/gt;if(p.progress>=1){p.progress=1;p.ready=true;}changed=true;}
     }
-    /* THE RATE IS UNCHANGED. A worker does exactly what one level of the old
-       Harvest Bot did, at exactly the same cadence, so this change moves only
-       how automation is ACQUIRED. That is deliberate: if the rate moved too,
-       any drift the economy model reports could not be attributed. */
-    const botLvl=workerLevel('harvest');
+    const botLvl=superBotOn()?99:S.upgLevels.auto;
     if(botLvl>0){
       S.autoTimer-=dt;
       if(S.autoTimer<=0){
-        S.autoTimer=superBotOn()?0.5:Math.max(0.8,4-botLvl);
+        S.autoTimer=superBotOn()?0.5:Math.max(0.8,4-S.upgLevels.auto);
         const idx=S.plots.findIndex((p,i)=>i<S.unlockedPlots&&p.ready);
         if(idx>=0) harvest(idx);
       }
