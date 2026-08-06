@@ -4469,7 +4469,7 @@ html,body{margin:0;height:100%;overflow:hidden;touch-action:none;
       <span id="coinCount">0</span>
     </div>
   </div>
-  <div id="verTag">v8.9</div>
+  <div id="verTag">v9.0</div>
   <div id="noWebGL">
     <div class="emoji">🌾</div>
     <h1>This browser can't show the farm</h1>
@@ -5215,7 +5215,7 @@ function taskProgress(def){
   if(def.type==='counter') return Math.min(def.n, S.taskProg[def.id]||0);
   if(taskMeasured(def)){
     const n=def.now(S);
-    return isFinite(n) ? Math.max(0, Math.min(goalOf(def), n)) : 0;
+    return isFinite(n) ? clamp(n, 0, goalOf(def)) : 0;
   }
   return def.check(S)?1:0;
 }
@@ -8689,14 +8689,22 @@ function syncCropInstances(t){
     const p=S.plots[slot.plot];
     let sproutS=0, youngS=0, ripeS=0;
     if(!locked && p){
-      const g=Math.max(0,Math.min(1,p.progress));
+      /* clamp(), NOT the nested Math.max/Math.min, and this is the path where
+         that mattered most. A non-finite progress survives the nested form, and
+         then: CROP_STAGES.find() matches nothing (every NaN comparison is
+         false) so it falls to the last stage, the ramp below is NaN, the scale
+         is NaN, and setCropInstance() writes a NaN matrix. A NaN matrix does
+         not error and does not draw -- EVERY PLANT IN THAT BED SIMPLY VANISHES,
+         silently, and because `progress >= 1` is also never true the crop can
+         never be harvested either. An empty bed that never grows again. */
+      const g=clamp(p.progress,0,1);
       /* ONE TABLE, WALKED. The old form was three hand-written branches with
          their own hand-written ramps, and the numbers at the seams had to be
          kept in agreement by eye -- which is exactly the kind of thing that
          quietly develops a visible step. Reading the band out of the table
          makes the seams correct by construction. */
       const st=CROP_STAGES.find(x=>g>=x.from&&g<x.to)||CROP_STAGES[CROP_STAGES.length-1];
-      const f=(st.to>st.from)?Math.max(0,Math.min(1,(g-st.from)/(st.to-st.from))):1;
+      const f=(st.to>st.from)?clamp((g-st.from)/(st.to-st.from),0,1):1;
       let sc=st.s0+(st.s1-st.s0)*f;
       if(st.field==='sprout') sproutS=sc;
       else if(st.field==='young') youngS=sc;
@@ -8857,7 +8865,7 @@ const ANCHOR_REACH=11;
  */
 const UI_RAMP_FROM=560, UI_MAX=1.45;
 function uiScale(){
-  return Math.min(UI_MAX, Math.max(1, Math.min(innerWidth,innerHeight)/UI_RAMP_FROM));
+  return clamp(Math.min(innerWidth,innerHeight)/UI_RAMP_FROM, 1, UI_MAX);
 }
 function applyUIScale(){
   const k=uiScale();
@@ -9043,14 +9051,36 @@ function updateGauges(){
     if(off) continue;
     // QUANTISE, then compare, then write. The comparison is against the
     // displayed value, never against the float.
-    const step=Math.round(Math.max(0,Math.min(1,r.p))*GAUGE_STEPS);
+    /* clamp(), NOT Math.max(0,Math.min(1,...)). The nested form is the same
+       trap as everywhere else in this sweep: Math.min(1,NaN) is NaN and
+       Math.max(0,NaN) hands it straight back, so one non-finite progress would
+       have reached all three writers below at once --
+
+         --fill gets the string "NaN%". A CSS var() FALLBACK DOES NOT APPLY to a
+           set-but-invalid value, so the whole conic-gradient declaration is
+           dropped and the ring loses its fill arc entirely: an empty circle,
+           not a stuck one.
+         the timer text reads "NaNs" to the player, literally.
+         and both `step!==a._step` and `secs!==a._secs` are permanently true,
+           because NaN!==NaN -- so this would write to the DOM every frame for
+           every gauge, defeating the quantiser this block exists to be and the
+           churn measurement that guards it.
+
+       The upstream causes are fixed (progress is sanitised on load, and the
+       stage table can no longer yield a non-finite reading), so this is the
+       belt to that braces. Worth having because it is the layer that decides
+       what the PLAYER sees, and "NaNs" on a crop timer is the most alarming
+       thing this game could put on screen. */
+    const step=Math.round(clamp(r.p,0,1)*GAUGE_STEPS);
     if(step!==a._step){
       a._step=step;
       a.gauge.style.setProperty('--fill',(step*(100/GAUGE_STEPS)).toFixed(2)+'%');
     }
     // Clamped at 1: a crop with a Sun Boost running can have under a second
     // left, and "0s" on something you cannot yet collect reads as a bug.
-    const secs=Math.max(1,Math.ceil(r.s));
+    // isFinite first, for the same reason as the line above -- Math.max(1,NaN)
+    // is NaN, so this "floor" was never a floor either.
+    const secs=isFinite(r.s)?Math.max(1,Math.ceil(r.s)):1;
     if(secs!==a._secs){ a._secs=secs; a.gtext.textContent=secs+'s'; }
   }
 }
