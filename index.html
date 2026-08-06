@@ -4469,7 +4469,7 @@ html,body{margin:0;height:100%;overflow:hidden;touch-action:none;
       <span id="coinCount">0</span>
     </div>
   </div>
-  <div id="verTag">v9.1</div>
+  <div id="verTag">v9.2</div>
   <div id="noWebGL">
     <div class="emoji">🌾</div>
     <h1>This browser can't show the farm</h1>
@@ -4608,7 +4608,47 @@ const TASK_CHAIN = [
   { id:'t4',  icon:'🍅', title:'Better Seeds — Tomatoes',    type:'state',   check:s=>s.cropTier>=1, rMin:1.5 },
   { id:'t5',  icon:'🧺', title:'Harvest 15 crops',           type:'counter', ev:'harvest', n:15,  rMin:1.5 },
   { id:'t6',  icon:'📺', title:'Watch 1 ad',                 type:'counter', ev:'ad',      n:1,   rMin:2.0 },
+  /* WAS "Own 4 plots", and it was the emptiest task in the game: a halfway
+     point between t2's three plots and t13's six, arriving at 59s when the
+     player already had three and the fourth cost 40 coins more than they were
+     holding. Measured active for ZERO seconds. Dropping it loses nothing —
+     the plot progression still has its two real beats, three and full —
+     and harvesting is the thing the player actually DOES, which is what this
+     slot should be asking for. 5, 15, 30, then 90 at t24 is a real ramp. */
+  /* KEPT AS "Own 4 plots" AFTER TRYING THE ALTERNATIVE AND MEASURING IT.
+     This task resolves almost instantly — it arrives at 59s when the player has
+     three plots and 224 coins, and the fourth costs 264 — so it was replaced
+     with "Harvest 30 crops" to make it real play. That worked for THIS task and
+     broke a better one: harvesting is also what earns the farmhand at 40
+     lifetime harvests, so pushing the player to harvest here meant t11 "Earn a
+     farmhand" was already satisfied before it appeared. Measured at 30, 24 and
+     20 crops — t11 came out at zero seconds every time, because 40 harvests
+     happens naturally inside the first ninety seconds whatever the tasks ask.
+     Given one of the two had to be the trivial one, it should be this. The
+     farmhand arrival is the biggest moment in Level 1 now that a person
+     actually walks on and starts working, and it should be earned rather than
+     rubber-stamped; owning a fourth plot is a receipt either way.
+     The real fix is not tuning. The first ninety seconds has exactly two verbs
+     — harvest and buy — so any task placed there either duplicates a harvest
+     counter or is a quick purchase. More distinct things to DO early is
+     content, not a number. */
   { id:'t7',  icon:'🟫', title:'Own 4 plots',                type:'state',   now:s=>s.unlockedPlots, goal:4, check:s=>s.unlockedPlots>=4, rMin:1.5 },
+  /* Lv 2 -> Lv 4. Two levels cost 135 and the player reaches this task holding
+     346, so it was bought before it was read: active for one second. Four levels
+     cost 675, which is roughly twice what they have — so it becomes something to
+     save for rather than a receipt for something already done. Lv 5 is the cap,
+     so this still leaves headroom. */
+  /* LEFT AT Lv 2 DELIBERATELY, after trying Lv 4 and measuring the damage.
+     Two levels cost 135 against the 346 the player holds when this arrives, so
+     yes — it is bought almost immediately, and on the face of it Lv 4 (675)
+     looked like the obvious fix. It is not: GROWTH COMPOUNDS. Each level makes
+     every crop on every plot faster for the rest of the run, so pushing the
+     player to buy four of them accelerated the WHOLE GAME — measured, the
+     24-task chain fell from 21 minutes to 17. Making one task less trivial by
+     shortening the level by a fifth is a bad trade, and the owner had just
+     asked for the opposite ("make it longer").
+     So this stays quick, and it is the one task in the chain that is. A
+     compounding upgrade is an economy lever, not a pacing dial. */
   { id:'t8',  icon:'⏱️', title:'Buy Faster Growth Lv 2',     type:'state',   now:s=>s.upgLevels.speed, goal:2, check:s=>s.upgLevels.speed>=2, rMin:1.5 },
   { id:'t9',  icon:'💰', iconAsset:'coin', title:'Collect 1,800 coins',        type:'counter', ev:'coins',   n:1800, rMin:1.8 },
   { id:'t10', icon:'🌻', title:'Better Seeds — Sunflowers', type:'state',  now:s=>s.cropTier, goal:2, check:s=>s.cropTier>=2, rMin:2.0 },
@@ -4627,7 +4667,17 @@ const TASK_CHAIN = [
   { id:'t13', icon:'🟫', title:'Fill the farm — 6 plots',    type:'state',   now:s=>s.unlockedPlots, goal:6, check:s=>s.unlockedPlots>=6, rMin:2.5 },
   { id:'t14', icon:'💰', iconAsset:'coin', title:'Collect 7,000 coins',        type:'counter', ev:'coins',   n:7000, rMin:2.5 },
   { id:'t15', icon:'🐑', title:'Unlock the Meadow!',         type:'state',   check:s=>s.meadowOpen, rMin:3.0 },
-  { id:'t16', icon:'🐑', title:'Buy your first sheep',       type:'state',   check:s=>s.sheep.length>=1, rMin:2.0 },
+  /* WAS "Buy your first sheep", a purchase the player makes the second the
+     meadow opens whether or not anything asks them to. Measured: it appeared
+     with 5,757 coins in the bank against a sheep costing 1,800, so it resolved
+     in a single tick — a chip that appears, ticks and pays, having asked for
+     nothing. Buying is not playing.
+     Shearing IS playing, and now that it is a finished mechanic — walk over,
+     tap the sheep, watch him shear it — the task can ask for it. It cannot be
+     satisfied by having money: you must buy the sheep, wait for the wool to
+     grow, walk to the meadow and do it. It also introduces the shear action
+     one step before t17 asks for ten of them. */
+  { id:'t16', icon:'✂️', title:'Shear your first sheep',    type:'counter', ev:'wool',    n:1,   rMin:2.0 },
   { id:'t17', icon:'🧶', title:'Collect 10 wool',            type:'counter', ev:'wool',    n:10,  rMin:2.0 },
   { id:'t18', icon:'🐑', title:'Grow the flock — 3 sheep',   type:'state',   now:s=>s.sheep.length, goal:3, check:s=>s.sheep.length>=3, rMin:2.5 },
   { id:'t19', icon:'📺', title:'Watch 3 ads',                type:'counter', ev:'ad',      n:3,   rMin:3.0 },
@@ -7613,6 +7663,253 @@ function updateSkeletalNPCs(dt){
   }
 }
 
+/* =====================================================================
+   FARM WORKERS — THE BODY
+   =====================================================================
+
+   The RATE shipped in v8.7: earn 40 harvests and a farmhand arrives, and from
+   then on crops are collected on a timer. The problem is that nobody arrives.
+   Task t11 is literally called "Earn a farmhand", the player earns one, and the
+   farm looks exactly as it did — crops are collected by an unseen hand. This is
+   the half of that feature that was never built.
+
+   THE ONE RULE THIS FILE IS BUILT AROUND: THE TIMER OWNS THE INCOME, AND THE
+   BODY IS A FOLLOWER. S.autoTimer decides WHEN a crop is collected, exactly as
+   it does today; a body is then told to go and be seen doing it. The body never
+   votes on whether or when. Three reasons, in order of weight:
+
+     1. The economy model cannot see this. verify-flow.js models income as a
+        smooth rate and never simulates S.autoTimer at all — so if throughput
+        fell because a worker wedged itself on a fence post, `npm run verify`
+        would still print 24/24 tasks and 150 green checks while the real game
+        ran slower than its model. That is rule 2's failure mode arriving in the
+        one form the guard is blind to.
+     2. The arithmetic does not close. Cadence at three workers is 1.0s and the
+        beds are 9.5 units apart, so a body would need a permanent 5 u/s just to
+        keep up — and during the Super Bot ad the cadence is 0.5s, which needs
+        23.8 u/s. There is no speed at which a body satisfies that. A
+        body-driven economy could only approximate the shipped curve and then
+        need it re-tuned, which is the change rule 2 forbids.
+     3. The spec said so: "build the worker as a rate first, a body second".
+
+   So the income can be DEFERRED to the moment the worker arrives, never
+   cancelled: every dispatch carries a payload with a deadline, and if the body
+   has not arrived by then the payload settles anyway, wherever it is. Income
+   can be a couple of seconds late. It can never be lost, and the long-run rate
+   is identical because the timer never waits.
+
+   NOTHING HERE IS SAVED. S.workers keeps its {role, milestone, at} shape and
+   bodies are rebuilt from it on load, so a save written before this exists — or
+   after it is removed — is unaffected. */
+const WORKER_MODEL='villager';
+// Measured against the farmer in-game rather than copied from his 1.7648: the
+// two models are close but not identical, and a worker who is visibly a
+// different size from the player reads as a different species.
+const WORKER_SCALE=1.73;
+// Slower than the player's 9.5. A helper who moves like the person you control
+// competes with them for the eye; a bit slower reads as "working away in the
+// background", which is what they are.
+const WORKER_SPEED=6.2;
+const WORKER_ARRIVE=1.15;   // how close counts as "there"
+const WORKER_ACT=1.15;      // the pause at the target, roughly a clip's length
+const WORKER_GRACE=3.2;     // income settles by now whatever the body is doing
+// Three per role, matching the old bot cap. workerLevel() returns 99 while the
+// Super Bot ad runs, and ninety-nine villagers is not a feature.
+const WORKER_MAX=3;
+
+const workerBodies=[];
+/* WHO IS ALREADY WALKING TO WHAT. Runtime only — a claim is a fact about this
+   frame, not saved progress. Without it every worker picks the same lowest-index
+   bed and the last two do nothing, which is the "flock effect" the spec warned
+   about; and because the timer would still be paying out, the symptom would be
+   workers standing around rather than any change in income. */
+const workerClaims={plot:new Map(), sheep:new Map()};
+
+function clearWorkerClaims(){ workerClaims.plot.clear(); workerClaims.sheep.clear(); }
+
+/* HOMES SIT INSIDE THE FENCE THEY SERVE. There is no pathfinding anywhere in
+   this game — resolveBlockers() pushes out of things, it does not route around
+   them — and both worked zones are ringed by ~250 fence discs with one narrow
+   gate. A worker whose home was outside its zone would jam on the rail for
+   ever. Keeping every home and every target inside the same fence means the
+   absence of pathfinding is never exercised. */
+function workerHome(role,n){
+  const z=(role==='shear')?ZONES[1]:ZONES[0];
+  return {x:z.cx+(n-1)*3.2, z:z.cz+z.hz-4.5};
+}
+
+/* BORROW A CLIP FROM THE FARMER, FOR NOTHING.
+
+   The villager model ships with idle, walk and run and no work animations, so a
+   worker would walk to a bed and stand there while the crop vanished. Buying
+   `harvest` and `shear` for it is 6 credits; borrowing the farmer's is free,
+   and it works because both models came out of the same generator with
+   BYTE-IDENTICAL bone names -- three.js binds animation tracks by name, so the
+   farmer's clip drives the villager's skeleton without any retargeting rig.
+
+   ROTATION TRACKS ONLY, and that filter is the whole trick. Every clip also
+   carries a POSITION track per bone holding absolute offsets, and the two
+   skeletons' rest poses differ on 25 of their 26 nodes -- so playing the clip
+   whole would stamp the farmer's proportions onto the villager for its
+   duration and snap back afterwards. Same class of artefact stripScaleTracks()
+   was written to kill, one channel over. Keeping only the quaternions applies
+   the MOTION without the PROPORTIONS, which is what retargeting means.
+
+   Verified by looking at it: the borrowed harvest reads as a clean bend to the
+   bed with no morphing. If the model ever ships its own clip of that name this
+   defers to it, so buying one later needs no code change here. */
+function borrowClip(sk,name){
+  if(!sk||sk.actions[name]) return;
+  const src=(FORGED_CLIPS['hero-farmer']||[]).find(c=>c.name===name);
+  if(!src) return;
+  const rot=src.clone();
+  rot.tracks=rot.tracks.filter(t=>/\.quaternion$/.test(t.name));
+  if(!rot.tracks.length) return;
+  sk.actions[name]=sk.mixer.clipAction(rot);
+  if(sk.clips) sk.clips[name]=rot;
+}
+
+function makeWorkerBody(role,n,arriving){
+  const sk=makeSkeletalCharacter(WORKER_MODEL, true);
+  if(!sk) return null;                    // model missing: rate still works
+  borrowClip(sk,'harvest'); borrowClip(sk,'shear');
+  sk.root.scale.setScalar(WORKER_SCALE);
+  const home=workerHome(role,n);
+  /* A NEW HELPER WALKS IN THROUGH THE GATE. Popping into existence at their
+     post makes the moment the game just celebrated -- "a neighbour joined the
+     farm!" -- look like a spawn rather than an arrival.
+
+     THROUGH THE GATE, and only from there. The obvious version is to walk them
+     in from the hub, and it would jam: the hub is ~42 units away across a
+     fenced boundary, and there is no pathfinding in this game — resolveBlockers
+     pushes out of things, it does not route around them. The gate is an 8-unit
+     opening centred on the zone's +z edge (see ringFence), and the posts sit
+     4.5 units inside it, so this walk crosses no fence at all. Short, safe, and
+     it still reads as somebody arriving.
+
+     Only on ARRIVAL. A returning player's workers are already employed and
+     should be at their posts when the farm loads, not filing in through the
+     gate every time the game starts. */
+  const zone=(role==='shear')?ZONES[1]:ZONES[0];
+  const start=arriving ? {x:zone.cx, z:zone.cz+zone.hz} : home;
+  sk.root.position.set(start.x,0,start.z);
+  scene.add(sk.root);
+  playClip(sk,'idle',0);
+  return { role, sk, home, state:'idle', heading:0,
+           tx:home.x, tz:home.z, payload:null, until:0, deadline:0 };
+}
+
+/* Bodies follow the earned count. Called on load and whenever a worker arrives,
+   so it never needs to know WHICH of those happened. */
+function syncWorkerBodies(arriving){
+  for(const role of ['harvest','shear']){
+    const want=Math.min(WORKER_MAX, workerLevel(role)|0);
+    let have=workerBodies.filter(w=>w.role===role).length;
+    while(have<want){
+      const b=makeWorkerBody(role,have,arriving);
+      if(!b) break;                       // no model — stop trying, silently
+      workerBodies.push(b); have++;
+    }
+  }
+}
+
+function freeWorker(role){
+  for(const w of workerBodies) if(w.role===role && w.state==='idle') return w;
+  return null;
+}
+
+/* THE HANDOFF. Called by the automation timers in place of a direct
+   harvest()/collectWool(). Returns nothing: the income is guaranteed either
+   way, which is the whole contract. */
+function assignWork(role,kind,idx,settle){
+  const claims=workerClaims[kind];
+  const w=freeWorker(role);
+  // No body free, no body at all, or the target is already spoken for: settle
+  // it headlessly, exactly as the game did before workers had bodies. The body
+  // layer is a pure enhancement with a fall-through, so a missing model or a
+  // bug in the walker costs the ANIMATION and never the coins.
+  if(!w || claims.has(idx)){ settle(); return; }
+  claims.set(idx,w);
+  w.payload={kind,idx,settle};
+  w.state='walking';
+  w.deadline=(FarmerRig&&FarmerRig.animT||0)+WORKER_GRACE;
+  const t=workerTargetPos(kind,idx);
+  // A stand-off spot on the near side, so two workers on adjacent beds do not
+  // occupy the same point and so the body does not stand in the middle of the
+  // crop it is picking.
+  w.tx=t.x; w.tz=t.z+1.4;
+}
+
+function workerTargetPos(kind,idx){
+  if(kind==='plot'){ const p=plotWorldPos(idx); return {x:p.x, z:p.z}; }
+  const m=sheep3D[idx];
+  return m?{x:m.position.x, z:m.position.z}:{x:0,z:0};
+}
+
+function settleWorker(w){
+  if(w.payload){
+    workerClaims[w.payload.kind].delete(w.payload.idx);
+    try{ w.payload.settle(); }catch(e){}
+    w.payload=null;
+  }
+}
+
+function updateWorkerBodies(dt,t){
+  if(!workerBodies.length) return;
+  for(const w of workerBodies){
+    w.sk.mixer.update(dt);
+    // THE DEADLINE, checked before anything else. However stuck the body is,
+    // the crop was collected on time.
+    if(w.payload && t>=w.deadline){
+      settleWorker(w);
+      w.state='idle'; w.tx=w.home.x; w.tz=w.home.z;
+    }
+    if(w.state==='working'){
+      if(t>=w.until){ settleWorker(w); w.state='idle'; w.tx=w.home.x; w.tz=w.home.z; }
+      else {
+        // Do the JOB, not a stand. Falls back to idle if the clip could not be
+        // borrowed, so a missing farmer model costs the animation and nothing
+        // else -- the crop is still collected either way.
+        const job=(w.role==='shear')?'shear':'harvest';
+        if(!playClip(w.sk,job,0.18)) playClip(w.sk,'idle',0.2);
+        continue;
+      }
+    }
+    const px=w.sk.root.position.x, pz=w.sk.root.position.z;
+    const dx=w.tx-px, dz=w.tz-pz;
+    const d=Math.hypot(dx,dz);
+    if(d<=WORKER_ARRIVE){
+      if(w.state==='walking'){
+        // Arrived at the work. Hold still for a beat so the collection reads as
+        // something a person did, rather than a crop vanishing as they pass.
+        w.state='working'; w.until=t+WORKER_ACT;
+        if(w.payload){
+          const tp=workerTargetPos(w.payload.kind,w.payload.idx);
+          w.heading=Math.atan2(tp.x-px,tp.z-pz);
+          w.sk.root.rotation.y=w.heading;
+        }
+      }else{
+        w.state='idle';
+      }
+      playClip(w.sk,'idle',0.25);
+      continue;
+    }
+    // Walk. resolveBlockers keeps them out of fences, buildings and trees --
+    // the same call the player uses, so a worker cannot end up somewhere the
+    // player could not stand.
+    const step=Math.min(d, WORKER_SPEED*dt);
+    const nx=px+(dx/d)*step, nz=pz+(dz/d)*step;
+    const s=resolveBlockers(nx,nz);
+    w.sk.root.position.x=s.x; w.sk.root.position.z=s.z;
+    const want=Math.atan2(dx,dz);
+    w.heading+=shortestAngle(want-w.heading)*Math.min(1,dt*8);
+    w.sk.root.rotation.y=w.heading;
+    playClip(w.sk,'walk',0.2);
+    const act=w.sk.actions.walk;
+    if(act) act.timeScale=clamp(WORKER_SPEED/CLIP_GROUND_SPEED.walk,0.35,2.2);
+  }
+}
+
 /* PATROL — walk a path from the placement file, and turn to face the way you are going.
 
    GENERIC, like every other registry-driven behaviour here: the path, the speed and the
@@ -7763,6 +8060,15 @@ function buildWorld(){
   // Rebuilt with the world, so what is solid can never disagree with what is
   // actually standing there.
   BLOCKERS.length=0;
+  /* Workers are rebuilt with the world too, and their claims are dropped.
+     A claim names a bed a worker is walking to; if the world is rebuilt under
+     it, that worker no longer exists and the bed would stay spoken-for for
+     ever, quietly removing it from the pool. Bodies themselves are runtime
+     objects rebuilt from S.workers, so dropping them here is free — and NOT
+     dropping them would leave the old villagers standing in the new scene. */
+  for(const w of workerBodies){ if(w.sk&&w.sk.root&&w.sk.root.parent) w.sk.root.parent.remove(w.sk.root); }
+  workerBodies.length=0;
+  clearWorkerClaims();
   // Rebuilt with the world for the same reason the blockers are: a shadow left
   // over from a previous build would sit on empty grass.
   GROUND_SHADOWS.length=0;
@@ -10151,6 +10457,10 @@ function farmerCheer(){ farmerSay(['Yay! 🎉','Nice! ⭐','Great job! 🌟','Wo
    change. The arrival deserves a proper moment -- a visitor walking up the
    path, a panel with a face -- and that is worth doing on its own. */
 function announceWorkers(arrivals){
+  // A new arrival needs a body, and it walks in through the gate rather than
+  // appearing at its post. Safe to call when nothing arrived: syncWorkerBodies
+  // only builds when the earned count exceeds the bodies that exist.
+  syncWorkerBodies(!!(arrivals&&arrivals.length));
   if(!arrivals||!arrivals.length) return;
   arrivals.forEach((m,i)=>{
     setTimeout(()=>{
@@ -11452,7 +11762,10 @@ function tick(nowMs){
         // silent: the FARMHAND picked this, not the player. Without the flag
         // the player's character bent down and mimed a harvest at whatever
         // patch of ground it was standing on, anywhere on the map.
-        if(idx>=0) harvest(idx,true);
+        // Hand it to a FARMHAND if one is free. assignWork() guarantees the
+        // income either way — if no body is free, or the model never loaded,
+        // it settles immediately exactly as this line used to.
+        if(idx>=0) assignWork('harvest','plot',idx,()=>harvest(idx,true));
       }
     }
     if(S.meadowOpen){
@@ -11480,13 +11793,15 @@ function tick(nowMs){
              the flag, so the guard it describes has never once engaged. The
              farmer has been miming a shear on the far side of the map every
              time the shepherd worked. */
-          if(si>=0) collectWool(si,true);
+          // Hand it to a SHEPHERD. Same guarantee as the crop path above.
+          if(si>=0) assignWork('shear','sheep',si,()=>collectWool(si,true));
         }
       }
     }
     updateCharacter(dt,elapsed);
     updateGeneratedNPCs(elapsed);
     updateSkeletalNPCs(dt);
+    updateWorkerBodies(dt,elapsed);
     updateCamera(dt);
     updateWorldLife(dt,elapsed);
     updateHUDWorld();
@@ -11707,6 +12022,12 @@ function startWorld(){
   // would keep the flat fallback until something happened to redraw it.
   installCoinIcon();
   buildWorld();
+  /* Give a returning player their workers back. buildWorld() clears the bodies
+     and announceWorkers() only creates one when a NEW worker arrives, so
+     without this a save that already earned three farmhands would boot with an
+     empty farm and only grow bodies on the next milestone — which, at the cap,
+     never comes. */
+  syncWorkerBodies();
   // TRIED AND REVERTED, 2026-08-02: renderer.compile(scene,camera) here.
   //
   // The theory was sound — forged models turn vertex colours on, which is a
