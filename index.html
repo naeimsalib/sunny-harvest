@@ -4469,7 +4469,7 @@ html,body{margin:0;height:100%;overflow:hidden;touch-action:none;
       <span id="coinCount">0</span>
     </div>
   </div>
-  <div id="verTag">v9.3</div>
+  <div id="verTag">v9.4</div>
   <div id="noWebGL">
     <div class="emoji">🌾</div>
     <h1>This browser can't show the farm</h1>
@@ -4562,6 +4562,27 @@ html,body{margin:0;height:100%;overflow:hidden;touch-action:none;
 /* =====================================================================
    CONFIG — identical to the flow-verified economy (do not drift).
    ===================================================================== */
+/* THE TWO `auto` CURVES ARE UNREACHABLE, AND THAT IS DELIBERATE — read this
+   before "tidying" them away (annotated 2026-08-06).
+
+   They priced the Harvest Bot and the Wool Bot. Both items were removed from
+   the two shops in v8.7, when automation stopped being bought and started
+   arriving as workers you earn by playing. Nothing can charge these prices any
+   more: a cost is only ever looked up through shopItem(list,key), and neither
+   list has an item keyed 'auto' — verified, not assumed (FARM_SHOP is plot,
+   speed, seeds; MEADOW_SHOP is open, sheep, wool, shear).
+
+   They are kept because they are the RECORD OF WHAT AUTOMATION USED TO COST,
+   and that record is load-bearing in one specific way: workerLevel() still
+   counts a legacy `upgLevels.auto` / `meadowLv.auto` so a player who paid 350,
+   980 and 2,744 coins for three Harvest Bots keeps exactly the throughput they
+   bought. Those level fields are written explicitly in newState() and do NOT
+   derive from this table, so deleting these two lines would not break that
+   migration — but it would delete the only place in the code that says what
+   those levels were worth, and the economy parity checks that pin them.
+
+   Removing them is a fine idea and needs the owner's word first, because it is
+   deleting something the game once sold. */
 const FARM = {
   crops:["carrot","tomato","sunflower"], cropValue:[5,12,30], growTime:6,
   costs:{ plot:{base:50,mult:2.3,max:6}, speed:{base:45,mult:2.0,max:5},
@@ -4732,11 +4753,43 @@ const TASK_PAN={
 // to ~21 minutes of active play, so no retuning is needed and verify-flow must
 // still report 24/24.
 //
-// Level 2 is deliberately absent (decision D3): the farm is full after 6 plots
-// and 5 sheep, so there is nothing yet for a second set to ask for. The level
-// *system* is built now; the content comes later alongside the chickens/bakery
-// site. Adding a Level 2 is adding one more array here — nothing else changes.
-const TASK_SETS=[ TASK_CHAIN ];
+// Level 2 was deliberately absent under decision D3, on the grounds that the
+// farm is full after 6 plots and 5 sheep so there was nothing for a second set
+// to ask for. D3 IS RETIRED as of 2026-08-06: the second level did not need new
+// content, it needed the existing chain cut in the right place. Everything the
+// meadow and the flock already ask for IS Level 2, and it surfaced ~113,000
+// coins of wool upgrades that no task had ever mentioned. See the split below.
+/* TWO LEVELS, SPLIT AT THE MEADOW GATE (2026-08-06, the owner's call).
+
+   LEVEL 1 IS THE CROP FARM AND NOTHING ELSE. It ends the moment the farm is
+   full — "Fill the farm — 6 plots" — because that is the point at which the
+   player has done everything the crop farm has to teach: plant, walk over,
+   harvest, buy a plot, upgrade a seed, earn a farmhand. In the owner's words:
+   "once they finish and buy all the plots and understand the flow that's when
+   they upgrade and go to level two."
+
+   LEVEL 2 IS THE MEADOW AND THE FLOCK, and it OPENS with saving up for it —
+   "and then starting level two they start working on upgrading and unlocking
+   the Sheepmeadow farm and then going through unlocking the sheep itself." So
+   the 7,000-coin task is the first beat of Level 2, not the last of Level 1.
+   Ending Level 1 on a savings grind would have been a flat finale; ending it on
+   the farm visibly full is the reward.
+
+   NOTHING IS RETUNED, WHICH IS THE WHOLE POINT (R2). No task changed, no number
+   moved, no reward recalculated — this is a partition of a list that already
+   existed, so the pacing carries over exactly and the flow model still walks
+   the same 24 tasks in the same order. Moving a boundary costs nothing;
+   retuning cascades.
+
+   Sliced rather than written out as two literals so TASK_CHAIN stays the single
+   authored list. The verifier parses it line by line, and two hand-maintained
+   arrays is how the second one silently loses a task.
+
+   It also surfaces Wool Quality and Quick Shears — around 113,000 coins of
+   upgrades that already exist in the meadow shop and that no task has ever
+   mentioned. Level 2 is where they finally have somewhere to be. */
+const LEVEL_1_LEN = 13;                       // t1..t13 — the whole crop farm
+const TASK_SETS=[ TASK_CHAIN.slice(0, LEVEL_1_LEN), TASK_CHAIN.slice(LEVEL_1_LEN) ];
 
 // The set the player is currently working through, or null once they have
 // finished every authored set.
@@ -4759,6 +4812,33 @@ function openWindow(setIdx){
 // boundary, and leaving it in the file invites a future refill from reaching
 // for it. What the player sees at that edge is handled in renderTasks().
 function taskAt(i){ const set=currentSet(); return set && i<set.length ? set[i] : null; }
+
+/* HOW MANY MINUTES OF PRODUCTION ONE COIN RUSH IS WORTH.
+
+   WAS 8, ON A 5-MINUTE COOLDOWN, AND THAT IS WHY THE EARLY GAME FELT BROKEN.
+   Eight minutes of income every five minutes means the ad alone pays 1.6x what
+   the farm pays, so a player who taps it earns most of their money by watching
+   rather than by farming. Measured before the change: the rush was 52% of all
+   coins taken in, and EVERY purchase available in Level 1 cost less than one
+   rush. That is the real cause of tasks resolving the instant they appear —
+   nothing was ever unaffordable, so no goal ever had to be worked toward.
+
+   It also made the two experiences incomparable. The ad-watcher's shop was
+   empty at 13m01s; the player who ignored ads was still buying at 44m46s, and
+   sat on a bank of 0-101 coins after every purchase. One game, two economies.
+
+   2.5 minutes on the same cooldown makes the ad worth half a minute of
+   production per minute of cooldown: a real gift, still the best button on the
+   screen, no longer the entire income. The ad itself is untouched — the owner's
+   decision was to cut the payout and keep the offer.
+
+   NOT A NUMBER TO TUNE CASUALLY (R2). The flow model does NOT credit these
+   coins — it counts an ad only to satisfy the ad TASKS — so verify-flow's
+   ~21-minute chain is, and always was, the no-rush-coins case. Changing this
+   moves what a real player feels while leaving that figure untouched, which is
+   exactly the kind of silent divergence rule 2 exists to stop. Say so out loud
+   whenever this moves. */
+const RUSH_MINUTES = 2.5;
 
 const AD_DEFS = {
   rush:  { icon:'💰', name:'Coin Rush',  cd:5*60, cap:10, desc:()=>fmt(rushAmount()) },
@@ -4946,6 +5026,29 @@ const ZONES=[
   {name:'farm',   cx:-42, cz:16, hx:17, hz:15},
   {name:'meadow', cx:  2, cz:-24, hx:17, hz:13},
   {name:'build',  cx: 48, cz:14, hx:13, hz:11}
+];
+
+/* WALK ROUTES FOR A FUTURE NPC — reference data, nothing reads this yet.
+
+   Ambient villagers were removed on the owner's instruction ("NPC will be meant
+   for specific actions or things"), and their model and walk loop are both gone.
+   These three loops are kept because they are the part that was EXPENSIVE to get
+   right: each is verified against the fence lines to stay outside them or pass
+   through a gate. Villagers clipped through fences at three points once, and
+   re-deriving these would mean re-doing that geometry audit.
+
+   Moved here from inside buildWorld() on 2026-08-06, where they were locals
+   rebuilt on every world rebuild and then thrown away by an immediate
+   `void routes;`. Data that nothing consumes belongs beside the other world
+   constants, stated as unused, rather than in the hot path disguised as
+   something switched off.
+
+   Route 1 is the farm loop, 2 enters and leaves the meadow THROUGH THE GATE,
+   and 3 runs to the build site. */
+const NPC_ROUTES=[
+  [{x:-6,z:14},{x:-21,z:16},{x:-21,z:26},{x:-6,z:22}],
+  [{x:6,z:6},{x:3,z:-8},{x:3,z:-16},{x:12,z:-18},{x:3,z:-16},{x:3,z:-8}],
+  [{x:12,z:16},{x:34,z:16},{x:34,z:24},{x:12,z:24}]
 ];
 
 /* THE PATHS, AS DATA. (M5)
@@ -5164,7 +5267,17 @@ function woolTime(){return MEADOW.woolTime*Math.pow(0.85,S.meadowLv.shear);}
 function farmEPS(){return S.unlockedPlots*cropValue()/growTime()*efficiency();}
 function meadowEPS(){return S.sheep.length*woolValue()/woolTime()*0.85;}
 function eps(){return farmEPS()+(S.meadowOpen?meadowEPS():0);}
-function rushAmount(){return Math.max(20,Math.round(eps()*8*60/10)*10);}
+/* `Math.max(20, ...)` IS NOT THE FLOOR IT LOOKS LIKE, which is the same trap
+   already written up beside rMin: Math.max(20, NaN) returns NaN, not 20. eps()
+   is a chain of divisions over save-loaded state, so a corrupt save reaching
+   here would have added NaN to the balance and destroyed it — and the coin
+   counter would then read "NaN", which is how this class announces itself far
+   too late. Stated as the safe condition and negated, like every other guard
+   of this shape in the file. */
+function rushAmount(){
+  const v=Math.round(eps()*RUSH_MINUTES*60/10)*10;
+  return isFinite(v)&&v>20 ? v : 20;
+}
 function boostOn(){return now()<S.boostUntil;}
 function superBotOn(){return now()<S.superBotUntil;}
 // The wool collector is independent of the crop bot. Buying the Harvest Bot must
@@ -5200,18 +5313,24 @@ function woolBotLevel(){return workerLevel('shear');}
    against is disturbed as little as possible. The first one lands around the
    point the Harvest Bot used to be bought.
 
-   `max` caps each role at what the old upgrade capped at, so throughput can
-   never exceed what the economy was modelled with. */
+   THE CAP IS PER ROLE, AND IT LIVES IN ONE PLACE: WORKER_MAX. Each entry used
+   to carry its own `max:3`, which put SIX copies of the same 3 in this file --
+   five here and WORKER_MAX itself -- read by two different functions that both
+   had to agree. It also mis-stated the rule: "at most three harvest workers" is
+   a fact about the ROLE, not about any one milestone, and storing it per
+   milestone invited five entries to disagree about a number that cannot
+   meaningfully differ between them. Same cap as the old upgrade, so throughput
+   still cannot exceed what the economy was modelled with. */
 const WORKER_MILESTONES=[
-  { role:'harvest', max:3, when:s=>s.lifeHarvest>=40,
+  { role:'harvest', when:s=>s.lifeHarvest>=40,
     who:'A farmhand', why:'saw you working and wants to help with the crops' },
-  { role:'shear',   max:3, when:s=>s.meadowOpen && s.lifeWool>=15,
+  { role:'shear',   when:s=>s.meadowOpen && s.lifeWool>=15,
     who:'A shepherd', why:'has heard about your flock and wants to help shear' },
-  { role:'harvest', max:3, when:s=>s.unlockedPlots>=FARM.maxPlots,
+  { role:'harvest', when:s=>s.unlockedPlots>=FARM.maxPlots,
     who:'A neighbour', why:'says a farm this size needs another pair of hands' },
-  { role:'harvest', max:3, when:s=>s.lifeHarvest>=400,
+  { role:'harvest', when:s=>s.lifeHarvest>=400,
     who:'A farmhand', why:'wants to join the harvest' },
-  { role:'shear',   max:3, when:s=>s.lifeWool>=200,
+  { role:'shear',   when:s=>s.lifeWool>=200,
     who:'A shepherd', why:'wants to help with the wool' }
 ];
 /* Checked after anything that could satisfy one. Returns the arrivals so the
@@ -5222,7 +5341,7 @@ function checkWorkerArrivals(){
   for(let i=0;i<WORKER_MILESTONES.length;i++){
     const m=WORKER_MILESTONES[i];
     if(S.workers.some(w=>w.milestone===i)) continue;      // already arrived
-    if(workerLevel(m.role)>=m.max) continue;              // that job is full
+    if(workerLevel(m.role)>=WORKER_MAX) continue;         // that job is full
     if(!m.when(S)) continue;
     S.workers.push({role:m.role, milestone:i, at:now()});
     got.push(m);
@@ -5569,6 +5688,45 @@ function load(){
         S.setIdx=TASK_SETS.length; S.setDone=0; S.taskIdx=[]; S.setNext=0;
       }
     }
+
+    /* THE LEVEL SPLIT MIGRATION (2026-08-06). WITHOUT THIS, SPLITTING THE CHAIN
+       BREAKS EVERY SAVE PAST TASK 13 — silently, and permanently.
+
+       Saves written between the set system and the split carry setIdx:0 with
+       taskIdx indexing the ONE 24-task set. Level 1 now holds 13, so a player
+       on task 17 wakes up holding indices that resolve to null: the strip
+       renders empty, nothing is claimable, and because the level only advances
+       when a task is CLAIMED, they can never reach the next set. A dead save
+       that still loads, which is the worst shape a save bug can take.
+
+       The block above does not catch them — it only fires for saves with no
+       setIdx at all, and these have one.
+
+       The test is any progress that cannot exist under the new layout: a
+       completion count or an index at or past the end of Level 1 while still
+       claiming to be in Level 1. A player who is genuinely early (setDone 5,
+       indices 5-7) is valid in BOTH layouts and is deliberately left alone.
+
+       Indices are absolute in the old save and set-local in the new one, so
+       they shift down by Level 1's length. farmLevel comes up to 2 as well:
+       they finished Level 1's content, they should not be told they are still
+       on Level 1. */
+    const L1=TASK_SETS[0].length;
+    if(S.setIdx===0 && TASK_SETS.length>1 &&
+       ((S.setDone|0)>=L1 || S.taskIdx.some(i=>i>=L1) || (S.setNext|0)>L1)){
+      const lifetime=S.setDone|0;
+      if(lifetime >= L1 + TASK_SETS[1].length){
+        // Past everything the game has authored. Same landing as above.
+        S.setIdx=TASK_SETS.length; S.setDone=0; S.taskIdx=[]; S.setNext=0;
+      }else{
+        S.setIdx=1;
+        S.setDone=lifetime - L1;
+        S.taskIdx=S.taskIdx.map(i=>i-L1).filter(i=>i>=0 && i<TASK_SETS[1].length);
+        if(!S.taskIdx.length) S.taskIdx=openWindow(1);
+        S.setNext=Math.min(TASK_SETS[1].length, Math.max(...S.taskIdx)+1);
+      }
+      S.farmLevel=Math.max(S.farmLevel|0, 2);
+    }
     return true;
   }
   return false;
@@ -5711,7 +5869,22 @@ function showAssetError(name, why){
     }
     box.textContent='Some artwork could not be loaded, so part of the farm is missing. '+
                     'Please refresh. ('+name+': '+why+')';
-  }catch(e){}
+  }catch(e){
+    /* THE CATCH STAYS, THE SILENCE DOES NOT (2026-08-06). This used to be a bare
+       `catch(e){}`, which is the one place in the file that swallowing is least
+       affordable: this function's ENTIRE JOB is to make a failure visible, so a
+       silent failure here means the asset failure is invisible AND the fact that
+       we failed to report it is invisible too. Two losses, no trace, and the
+       caller carries on believing the player has been told.
+
+       Still caught rather than thrown, because a DOM write that fails must not
+       take the asset loader down with it — the game with a missing prop is worth
+       more than no game. But it now leaves a mark, and it carries the ORIGINAL
+       failure with it, since that is the one somebody actually needs. */
+    try{ console.error('[assets] could not show the on-screen failure banner ('+
+                       e.message+'). The failure it was reporting: '+name+' — '+why); }
+    catch(_){}
+  }
 }
 
 /* base64 text -> the raw bytes GLTFLoader wants.
@@ -6191,7 +6364,11 @@ function resolveBlockers(x,z){
 }
 
 let renderer, scene, camera, ray=new THREE.Raycaster(), tapV=new THREE.Vector2();
-let FarmerRig=null, plots3D=[], sheep3D=[], clouds3D=[], butterflies=[], npcs=[], dust=[];
+// `npcs=[]` was here until 2026-08-06. Nothing pushed to it after makeVillager()
+// was removed, and the only thing that read it was a walk loop that therefore
+// iterated nothing every frame. An empty array with a loop over it reads as a
+// feature that is switched off; it was a feature with no parts left.
+let FarmerRig=null, plots3D=[], sheep3D=[], clouds3D=[], butterflies=[], dust=[];
 /* EVERY MATERIAL COLOUR IN THE GAME GOES THROUGH HERE.
    That is deliberate and worth protecting: it means the colour pipeline can be
    corrected in one place instead of chasing several hundred hex values.
@@ -6303,8 +6480,21 @@ function initThree(){
    Raising the big map is not the answer: at 3072x2253 it already costs ~28 MB of texture
    memory, and doubling it would be 110 MB.
 
-   So a small tile is repeated like wallpaper instead. 512x512 covering 5 world units is
-   ~100 pixels per unit — three times sharper than the screen needs — for 1 MB.
+   So a small tile is repeated like wallpaper instead.
+
+   THE NUMBERS BELOW ARE MEASURED FROM THE SHIPPED FILE (2026-08-06). This
+   paragraph previously read "512x512 covering 5 world units is ~100 pixels per
+   unit — three times sharper than the screen needs — for 1 MB", and every one
+   of those figures was wrong: the tile is 1024x1024, it covers 16 world units
+   (tileWorldUnits, read from the groundDetail block), and it weighs 225 KB as
+   JPEG. The conclusion happened to survive, which is exactly why nobody caught
+   it — a paragraph of confident arithmetic that had drifted from the asset it
+   described, and would have been used as the basis for the next decision.
+
+   Actual: 1024 / 16 = 64 pixels per world unit, against the ~36 the display
+   shows. Still comfortably sharper than the screen, by 1.8x rather than 3x,
+   and there is no headroom being wasted. 225 KB for the detail tile plus
+   119 KB for its normal map.
 
    It carries LIGHT AND SHADE ONLY, centred so that 128 means "no change". The big map
    keeps supplying every colour, so the palette is untouched and a photograph of real
@@ -7723,8 +7913,18 @@ const WORKER_SPEED=6.2;
 const WORKER_ARRIVE=1.15;   // how close counts as "there"
 const WORKER_ACT=1.15;      // the pause at the target, roughly a clip's length
 const WORKER_GRACE=3.2;     // income settles by now whatever the body is doing
-// Three per role, matching the old bot cap. workerLevel() returns 99 while the
-// Super Bot ad runs, and ninety-nine villagers is not a feature.
+/* THREE PER ROLE, AND THIS IS THE ONLY PLACE THAT SAYS SO. Matches the cap the
+   old bot upgrade had, so the modelled throughput is unchanged.
+
+   Read by two functions that must agree: syncWorkerBodies() below, which caps
+   how many villagers are spawned, and checkWorkerArrivals(), which caps whether
+   a milestone may fire at all. Until 2026-08-06 the second one read a per-entry
+   `max:3` on each of the five milestones instead -- six copies of one number,
+   which is five chances for the arrival rule and the body rule to disagree and
+   leave the player with an announced worker who never appears.
+
+   The value is also what stops the Super Bot ad spawning a crowd: workerLevel()
+   returns 99 while it runs, and ninety-nine villagers is not a feature. */
 const WORKER_MAX=3;
 
 const workerBodies=[];
@@ -8164,15 +8364,21 @@ function buildWorld(){
        This is the third version of this object and the first that is not
        secretly a box. A bed is a PLACE, not a thing: the game only ever needed
        it to look like ground and to hold nine crop positions. */
-    const bed=null;
-    if(bed){ g.add(bed); }
-    else if(false){
-      /* Fallback only. Deliberately ONE slab and no painted rows: if the model
-         is missing, plain ground is honest, whereas re-drawing the stripes
-         would quietly restore the exact look this replaced. */
-      const soil=new THREE.Mesh(new THREE.BoxGeometry(8,BED_H*0.8,8),M(0x8d5a30));
-      soil.position.y=BED_H*0.4; soil.receiveShadow=true; soil.castShadow=true; g.add(soil);
-    }
+    /* NOTHING IS ADDED TO THE GROUP FOR THE BED, and there is no fallback to
+       add either. What stood here until 2026-08-06 was:
+
+           const bed=null;
+           if(bed){ g.add(bed); }
+           else if(false){ ...one slab of BoxGeometry... }
+
+       Both branches were dead by construction — `bed` was the literal null and
+       the other test was the literal false — so this read as a model-load with
+       a graceful fallback while being neither. It cost a build check too, which
+       existed only to guard the shape of a block that could not execute.
+
+       A fallback would be meaningless here anyway. The bed is painted INTO the
+       ground texture, so there is no separate asset that can fail to arrive:
+       if the ground draws, the beds are on it. */
     /* THE LOCKED-PLOT MARKER. What stood here was a 1.5 x 1.5 grey box on end
        -- a placeholder that shipped, and one that said nothing at all. It got
        harder to ignore the moment the bed underneath it started looking like
@@ -8746,29 +8952,26 @@ function buildWorld(){
     bf.userData={w1,w2,t:Math.random()*10,tgt:{x:bf.position.x,z:bf.position.z},wt:0};
     scene.add(bf); butterflies.push(bf);
   }
-  /* villagers walking the paths */
-  /* routes verified against fence lines: stay outside, or pass through gates */
-  const routes=[
-    [{x:-6,z:14},{x:-21,z:16},{x:-21,z:26},{x:-6,z:22}],
-    [{x:6,z:6},{x:3,z:-8},{x:3,z:-16},{x:12,z:-18},{x:3,z:-16},{x:3,z:-8}],
-    [{x:12,z:16},{x:34,z:16},{x:34,z:24},{x:12,z:24}]
-  ];
-  const cols=[[0xf5453a,0x5c3a1e],[0x4a90d9,0x2b2118],[0xb47ff0,0xffc42e]];
-  /* makeVillager() IS GONE, and the note below is why it was kept until now.
-     It was a person built from two cylinders, three spheres and a hemisphere —
-     banned by forge/CLAUDE.md rule 2 — and it was kept as the machinery a
-     future PURPOSEFUL npc would need. That machinery now exists properly:
-     `villager` is a generated, rigged, animated character, and
-     spawnGeneratedCharacters() places any registered character from data with
-     no code at all. Keeping a primitive humanoid beside it would only invite
-     someone to reach for the cheap one. */
-  /* NO AMBIENT VILLAGERS. Removed at the owner's instruction 2026-08-04: "No need for
-     other characters to move around without no purpose. NPC will be meant for specific
-     actions or things." The routes and colours are kept because a purposeful NPC
-     — a shopkeeper at a stall, a worker harvesting — will want exactly this
-     machinery. Nothing here spawns until there is a reason for it.
-     makeVillager() itself is GONE as of 2026-08-06; see the note above. */
-  void cols; void routes;
+  /* NO AMBIENT VILLAGERS. Removed at the owner's instruction 2026-08-04: "No
+     need for other characters to move around without no purpose. NPC will be
+     meant for specific actions or things." Nothing spawns here until there is a
+     reason for it, and the parts are gone: makeVillager() (a person built from
+     two cylinders, three spheres and a hemisphere, banned by forge rule 2) went
+     on 2026-08-06, and so did the walk loop that drove it. A purposeful NPC will
+     be a generated, rigged character placed from data by
+     spawnGeneratedCharacters(), which needs no code per character.
+
+     THE ROUTES ARE THE ONE PART WORTH KEEPING, because they are the expensive
+     part: each was verified against the fence lines to stay outside them or
+     pass through a gate, and getting that wrong is how NPCs ended up clipping
+     through fences at three points once already.
+
+     Moved out of buildWorld() on 2026-08-06. They were locals here, rebuilt on
+     every world rebuild and then discarded by `void routes;` on the next line —
+     work done for nothing, and a shape that reads as "temporarily disabled"
+     rather than "reference data". The per-villager colour pairs went with them:
+     they dressed a primitive that no longer exists, and a generated character
+     brings its own materials. */
 
   initDust();
 
@@ -9736,10 +9939,18 @@ function shopItem(list,key){ return list.find(it=>it.key===key); }
    repeatable UPGRADE rather than a one-off purchase (BACKLOG 4.4). */
 function itemAnchor(list,key,opts){
   const get=()=>shopItem(list,key);
-  // The farm and the meadow BOTH have an item keyed 'auto' (Harvest Bot and
-  // Wool Bot — separate automations by the owner's design rule, and neither
-  // may automate the other). So the anchor id must be qualified, or the two
-  // would collide and data-key would address the wrong button.
+  // QUALIFY THE ANCHOR ID WITH ITS GROUP, so two shops cannot collide on a
+  // shared key and have data-key address the wrong button.
+  //
+  // The example that forced this was 'auto': the farm and the meadow each had
+  // an item by that name (Harvest Bot and Wool Bot — separate automations by
+  // the owner's design rule, neither allowed to automate the other). Both were
+  // removed in v8.7, so as of 2026-08-06 NO key is currently shared and this
+  // comment described a collision that can no longer happen.
+  //
+  // The qualification stays regardless. It is not a workaround for those two
+  // items; it is what makes the id well-defined for any future pair, and the
+  // shops already share the SHAPE of their keys.
   return addAnchor(Object.assign({
     key:(opts&&opts.group?opts.group+'.':'')+key,
     label:()=>get().name,
@@ -10203,16 +10414,7 @@ function updateCharacter(dt,t){
     if(act) act.timeScale = CLIP_GROUND_SPEED[want]
       ? clamp(speed/CLIP_GROUND_SPEED[want], 0.35, 2.2)
       : 1;
-    R.dustT-=dt;
-    if(k>0.35 && R.dustT<=0){ R.dustT=0.14; spawnDust(R.root.position.x,R.root.position.z); }
-    dust.forEach(d=>{
-      if(d.life>0){
-        d.life-=dt;
-        d.m.scale.setScalar(0.5+ (0.55-d.life)*2.6);
-        d.m.material.opacity=Math.max(0,d.life/0.55*0.7);
-        if(d.life<=0) d.m.visible=false;
-      }
-    });
+    updateDust(R,dt,k);
     return;
   }
 
@@ -10252,7 +10454,21 @@ function updateCharacter(dt,t){
   R.headG.rotation.x=-0.10*k;
   R.torso.scale.y=1+Math.sin(t*2.1)*0.02*(1-k);
 
-  /* dust puffs while running */
+  updateDust(R,dt,k);
+}
+
+/* DUST PUFFS WHILE RUNNING. One copy, called from both character paths.
+
+   This block was written out twice, once in the generated-character branch
+   above (which returns early) and once in the fallback parts-based branch. Both
+   are live — they are the two kinds of player, not an old version and a new one
+   — so this was true duplication rather than dead code, and the two would have
+   drifted the first time anyone tuned the puff and did not know to look twice.
+
+   `k` is normalised speed. The 0.35 gate means dust only kicks up at a run, and
+   0.55 is the puff's lifetime in seconds; the scale and opacity curves are both
+   written against it so changing it changes them together. */
+function updateDust(R,dt,k){
   R.dustT-=dt;
   if(k>0.35 && R.dustT<=0){ R.dustT=0.14; spawnDust(R.root.position.x,R.root.position.z); }
   dust.forEach(d=>{
@@ -10639,18 +10855,14 @@ function updateWorldLife(dt,t){
     b.position.y=1.7+Math.sin(u.t*2.2)*0.5;
     b.rotation.y=Math.atan2(dx,dz);
   });
-  npcs.forEach(v=>{
-    const u=v.userData, r=u.route, tgt=r[u.wp];
-    const dx=tgt.x-v.position.x, dz=tgt.z-v.position.z, d=Math.hypot(dx,dz);
-    if(d<0.6){ u.wp=(u.wp+1)%r.length; }
-    else{
-      v.position.x+=dx/d*2.6*dt; v.position.z+=dz/d*2.6*dt;
-      v.rotation.y+=shortestAngle(Math.atan2(dx,dz)-v.rotation.y)*Math.min(1,dt*5);
-      u.phase+=dt*8;
-      u.legs.children.forEach((l,li)=>{ l.rotation.x=Math.sin(u.phase+li*Math.PI)*0.5; });
-      v.position.y=Math.abs(Math.sin(u.phase))*0.06;
-    }
-  });
+  /* THE AMBIENT-VILLAGER WALK LOOP STOOD HERE AND IS GONE (2026-08-06).
+     It walked `npcs`, an array nothing has pushed to since makeVillager() was
+     removed — so it ran every frame over an empty list, for ever. Dead, but not
+     harmlessly dead: it read `u.legs`, `u.route` and `u.phase`, the shape of
+     the primitive two-cylinder villager the owner deleted, so it could never
+     have driven a generated character anyway. Keeping it looked like working
+     machinery for a feature that has no parts left.
+     The walk ROUTES survive as data — see NPC_ROUTES in buildWorld(). */
 }
 
 /* =====================================================================
@@ -10962,8 +11174,10 @@ function renderTasks(pulse){
   // BACKLOG 2.5 / conflict C4: past the last authored set there is nothing
   // left to show. The old generator filled this gap with unlimited scaled-up
   // filler ("Collect 84,000 coins"), which desyncs from an authored-set model
-  // and reads as endless busywork. Level 2 is deliberately deferred (D3), so
-  // say so plainly instead — an empty strip would look like a broken game.
+  // and reads as endless busywork. This is now the edge past LEVEL 2 rather
+  // than past Level 1 — D3, which deferred Level 2, was retired on 2026-08-06
+  // when the chain was split at the meadow. The message is unchanged and still
+  // needed: an empty strip would look like a broken game either way.
   if(!setsRemaining()){
     if(!strip.querySelector('.task.soon')){
       strip.innerHTML=`<div class="task soon"><div class="tTitle">
