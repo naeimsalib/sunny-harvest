@@ -4469,7 +4469,7 @@ html,body{margin:0;height:100%;overflow:hidden;touch-action:none;
       <span id="coinCount">0</span>
     </div>
   </div>
-  <div id="verTag">v9.4</div>
+  <div id="verTag">v9.5</div>
   <div id="noWebGL">
     <div class="emoji">🌾</div>
     <h1>This browser can't show the farm</h1>
@@ -4545,8 +4545,8 @@ html,body{margin:0;height:100%;overflow:hidden;touch-action:none;
          Level 1 and reading every screen rather than looking for crashes. -->
     <h3>How to play</h3>
     <p>Hold and drag on the ground to walk your farmer around.</p>
-    <p><b>Walk up to a ripe crop and tap it to harvest it.</b> A white ring
-       means it is ready.</p>
+    <p><b>Just walk onto a field to pick its crops.</b> Step onto the soil and
+       your farmer harvests whatever is ready.</p>
     <p><b>Walk up to a woolly sheep and tap it to shear it.</b></p>
     <p>Tap a job at the top and the view flies to it.</p>
     <p>Stand close to something to make its button appear.</p>
@@ -5050,6 +5050,31 @@ const NPC_ROUTES=[
   [{x:6,z:6},{x:3,z:-8},{x:3,z:-16},{x:12,z:-18},{x:3,z:-16},{x:3,z:-8}],
   [{x:12,z:16},{x:34,z:16},{x:34,z:24},{x:12,z:24}]
 ];
+
+/* THE SIZE OF ONE PATCH OF FARMLAND — ONE DEFINITION, USED BY BOTH THE PAINT
+   AND THE TRIGGER.
+
+   The owner asked for the harvest circle to be "equal to the exact size of the
+   land". That is only true if the circle and the land are derived from the same
+   numbers, so they are: soilPatch() paints with these, and the harvest trigger
+   measures with these. Two copies would have drifted the first time either was
+   nudged, and "exactly the size of the land" would have quietly become "about
+   the size of the land".
+
+   BED_HALF_W is the bed's half-width — beds are 8x8 world units on a 9.5 grid.
+   SOIL_SPREAD is how far the painted soil reaches inside that: 0.86, chosen
+   because at 1.06 the six patches merged into one brown mass and swallowed the
+   paths between them.
+
+   PLOT_R = 3.44. Note 2 x 3.44 = 6.88 against a 9.5 grid spacing, so no two
+   patches can overlap and the farmer can never be standing inside two at once —
+   which is what lets the harvest test simply take the first match. */
+const BED_HALF_W = 4.0, SOIL_SPREAD = 0.86;
+const PLOT_R = BED_HALF_W * SOIL_SPREAD;
+/* Walking onto ripe crops picks them. Named rather than inlined so the one
+   behaviour the owner asked for by name can be found by searching for it, and
+   so the probe and the checks can refer to the same switch. */
+const FARM_AUTOPICK = true;
 
 /* THE PATHS, AS DATA. (M5)
 
@@ -6694,7 +6719,9 @@ function makeGroundTexture(){
   };
   sitePad(ZONES[2].cx, ZONES[2].cz, 4.5, 3.5);
 
-  const BED_HALF=4.0;                       // the bed is 8x8 world units
+  // Shared with the harvest trigger, so the circle the player walks into is the
+  // same size as the soil they can see. See PLOT_R up beside the world layout.
+  const BED_HALF=BED_HALF_W;                // the bed is 8x8 world units
   const soilRnd=(()=>{ let s=20260805; return ()=>{ s=(s*16807)%2147483647; return s/2147483647; }; })();
   const soilPatch=(wx,wz)=>{
     const cxp=X(wx), cyp=Y(wz);
@@ -6704,7 +6731,7 @@ function makeGroundTexture(){
        ragged against. Beds sit on a 9.5 grid and are 8 across, so there is only
        1.5 of grass between them: the patch has to finish INSIDE its own bed and
        let the blob ring do the spilling. */
-    const rx=(BED_HALF/WORLD.w)*cv.width*0.86, ry=(BED_HALF/WORLD.h)*cv.height*0.86;
+    const rx=(BED_HALF/WORLD.w)*cv.width*SOIL_SPREAD, ry=(BED_HALF/WORLD.h)*cv.height*SOIL_SPREAD;
     g.save();
     g.fillStyle='#6b4423';
     // The body of the patch, then a ring of blobs to break its outline.
@@ -8302,7 +8329,6 @@ function buildWorld(){
   skirt.rotation.x=-Math.PI/2; skirt.position.y=-0.06; skirt.receiveShadow=true; scene.add(skirt);
 
   /* dense crop beds */
-  const ringGeo=new THREE.TorusGeometry(2.6,0.11,8,26);
   for(let i=0;i<FARM.maxPlots;i++){
     const p=plotWorldPos(i);
     const g=new THREE.Group(); g.position.set(p.x,0,p.z);
@@ -8405,8 +8431,26 @@ function buildWorld(){
         ry:cropRnd()*6.3
       });
     }
-    const ring=new THREE.Mesh(ringGeo,new THREE.MeshLambertMaterial({color:SRGB(0xffffff),transparent:true,opacity:0.85}));
-    ring.rotation.x=-Math.PI/2; ring.position.y=BED_H+0.09; ring.visible=false; g.add(ring);
+    /* THE READY-RING IS GONE (2026-08-06, the owner's call). What stood here:
+
+           const ring=new THREE.Mesh(ringGeo, ...white, opacity 0.85...);
+           ring.rotation.x=-Math.PI/2; ring.position.y=BED_H+0.09;
+           ring.visible=false; g.add(ring);
+
+       ...shown when the crop was ready, and PULSED every frame
+       (`ring.scale.setScalar(1+Math.sin(t*4+i)*0.05)`).
+
+       Three things were wrong with it and the owner named all three: it was
+       visible when it should have been a guide, it MOVED, and at radius 2.6 it
+       was nowhere near the size of the land it was supposedly marking — the
+       painted soil reaches 3.44.
+
+       It is not replaced by a smaller ring. It is replaced by PLOT_R, which is
+       derived from the same numbers the soil is painted with, and which the
+       farmer walks into to harvest. The circle still exists in every sense that
+       matters to the player; it is just the edge of the field now instead of a
+       decal on top of it, and the crops themselves are the readiness cue —
+       they visibly ripen. */
     /* THE WHOLE BED IS THE TAP TARGET, and until now almost none of it was.
 
        When the bed stopped being a box and became painted ground (see the note
@@ -8438,7 +8482,7 @@ function buildWorld(){
     pad.rotation.x=-Math.PI/2;
     pad.position.y=BED_H+0.05;
     g.add(pad);
-    g.userData={type:'plot',idx:i,lock,ring,pad};
+    g.userData={type:'plot',idx:i,lock,pad};
     scene.add(g); plots3D.push(g);
   }
 
@@ -9229,7 +9273,6 @@ function sync3DFarm(){
   plots3D.forEach((g,i)=>{
     const locked=i>=S.unlockedPlots;
     g.userData.lock.visible=locked;
-    g.userData.ring.visible=!locked&&S.plots[i].ready;
   });
 
   syncCropInstances();
@@ -10297,6 +10340,126 @@ function tapWorld(e){
 }
 function shortestAngle(a){ return ((a+Math.PI*3)%(Math.PI*2))-Math.PI; }
 
+/* KEEP THE CHARACTER ON TOP OF THE GROUND, WHATEVER THE CLIP DOES.
+
+   THE BUG, as the owner saw it: "the farmer tries to kneel down and harvest the
+   crop but the animation makes the farmer part under the knees disappear inside
+   the land."
+
+   THE CAUSE, measured out of the shipped .glb by walking the bone hierarchy
+   rather than by eye — the lowest world Y each bone reaches:
+
+       bone           idle    harvest
+       LeftLeg       0.346     -0.014     <- the knee, BELOW the floor
+       RightLeg      0.384     -0.010     <- so is the other one
+       Hips          0.732      0.328     <- drops 0.40 into a one-knee kneel
+       LeftToeBase   0.041     -0.020
+
+   Every other clip in the file stays above zero; harvest is the only one that
+   goes under. It is a deep one-knee kneel, and the knee is supposed to reach
+   the floor — it just reaches slightly THROUGH it, and the skinned shin around
+   the bone goes further still. Hence the lower leg vanishing into the soil.
+
+   WHY IT IS FIXED HERE AND NOT IN THE CLIP. The animation is a paid Meshy
+   asset; re-authoring it costs credits and needs the owner's word (CLAUDE.md
+   section F). A runtime clamp costs nothing, and it protects every future clip
+   as well as this one.
+
+   HOW: after the mixer has posed the skeleton, find the lowest leg bone. If the
+   pose puts it under the floor, lift the whole rig by exactly the shortfall.
+   Nothing is lifted when nothing is sinking, so walking, running and every idle
+   are untouched — measured, their lowest bones are 0.004 to 0.069, all clear.
+
+   THE FLOOR IS MEASURED FROM THE CHARACTER, NOT TYPED IN. A bone is not a
+   surface — the toe bone sits some way above the sole — so the useful question
+   is "how low does this bone go when the character is standing normally and
+   looks right?", and only the character can answer that. It is sampled once,
+   from the first standing frame, and everything is compared against it.
+
+   Typing the number in was tried first and was wrong: the value measured from
+   the .glb offline (0.041) is not the value the game sees (0.077), because the
+   model is scaled when it is placed in the world. A constant lifted out of an
+   offline measurement quietly encoded a scale factor nobody had written down.
+
+   ONLY DURING AN ACTION CLIP. Walking and running legitimately swing a foot
+   lower than a standing pose does — measured, walk reaches 0.027 below idle —
+   so clamping them would make the farmer float along the ground. They are also
+   not broken. The kneel is, so it alone is corrected.
+
+   THE LIFT RISES INSTANTLY AND FALLS SLOWLY. Easing it up was tried and left a
+   3-frame dip to -0.072 at the start of the kneel while the correction caught
+   up: 50ms of exactly the fault being fixed. There is no reason to ease INTO a
+   correction — going up can never look wrong, because it is the amount by which
+   the pose was already wrong. Coming down is eased so standing up does not pop.
+
+   Reading matrixWorld gives last frame's pose, one frame stale and invisible at
+   60fps, and far cheaper than forcing a second world-matrix update for one
+   character every frame. */
+const CLAMP_BONE=/Leg|Foot|Toe/;
+function clampToGround(R,dt){
+  const sk=R.skeletal;
+  if(!sk||!sk.root) return;
+  if(sk.clampBones===undefined){
+    sk.clampBones=[];
+    sk.root.traverse(o=>{ if(o.isBone && CLAMP_BONE.test(o.name||'')) sk.clampBones.push(o); });
+  }
+  if(!sk.clampBones.length) return;
+  /* CURRENT-FRAME MATRICES WHILE IT MATTERS, LAST FRAME'S OTHERWISE.
+     Reading matrixWorld without forcing an update gives the previous frame's
+     pose, and one frame of lag is normally invisible — except on the frame an
+     action STARTS, where the pose jumps and the correction arrives too late.
+     Measured: that single frame let the toe reach -0.0014 before the clamp
+     caught it. Recomposing the ~24-bone subtree costs nothing here and is only
+     done while an action is running or a lift is still easing out, so ordinary
+     walking and standing pay for none of it. */
+  if(R.actionClip||(R.groundLift||0)>0) sk.root.updateMatrixWorld(true);
+  let low=Infinity;
+  for(const b of sk.clampBones){
+    const y=b.matrixWorld.elements[13];
+    if(y<low) low=y;
+  }
+  // Stated as the safe condition, not `if(low<x)`: a NaN here would otherwise
+  // fall through to the unsafe branch and write NaN into the rig's position,
+  // which is the class of bug that has blanked this game's whole scene before.
+  if(!isFinite(low)) return;
+  // matrixWorld already includes the lift being applied, so take it back off or
+  // the correction feeds on itself and the farmer climbs into the sky.
+  const pose=low-(R.groundLift||0);
+  /* CALIBRATE FROM STANDING FRAMES — the LOWEST the character goes while simply
+     standing, which is by definition a height that already looks right.
+
+     `low>0.001` REJECTS THE FIRST FEW FRAMES, and it is not defensive padding:
+     bone world matrices are identity until the scene has been rendered once, so
+     the earliest frames report a floor of exactly 0. Calibrating on one of those
+     locked in floorY=0 and the clamp then did nothing at all, while every check
+     stayed green — measured, that is precisely what the first version did.
+
+     Refined over 30 frames rather than taken from one, because a single frame
+     could catch an idle gesture mid-step. Protection starts from the first valid
+     sample, so a harvest during the first half-second is still covered. */
+  const cur=R.groundLift||0;
+  if(sk.floorSeen===undefined) sk.floorSeen=0;
+  if(!R.actionClip && cur===0 && low>0.001 && sk.floorSeen<30){
+    sk.floorY = sk.floorY===undefined ? pose : Math.min(sk.floorY,pose);
+    sk.floorSeen++;
+  }
+  if(sk.floorY===undefined) return;
+  /* Keep correcting while the clip UNWINDS, not just while it owns the body.
+     actionClip clears the moment the action's time is up, but the mixer is
+     still blending out of the kneel for a fraction of a second after that —
+     measured, the deepest point of the whole movement was 2 frames AFTER the
+     flag cleared. `cur>0` keeps the clamp alive until the pose has genuinely
+     come back up, and it cannot latch on: once the pose clears the floor, want
+     falls to 0 and the lift eases away. */
+  const active = !!R.actionClip || cur>0.0005;
+  const want = (active && pose<sk.floorY) ? sk.floorY-pose : 0;
+  // Up immediately, down gently. See the note above on the 3-frame dip.
+  let next = want>cur ? want : cur+(want-cur)*Math.min(1,dt*7);
+  if(!isFinite(next)||next<0.0005) next=0;
+  R.groundLift=next;
+  R.root.position.y=next;
+}
+
 function updateCharacter(dt,t){
   const R=FarmerRig;
   // playAction() is called from the tap handlers, which have no `t`. Parking it
@@ -10324,6 +10487,29 @@ function updateCharacter(dt,t){
   if(solved.z!==nz) R.vel.z=0;
   R.root.position.x=solved.x;
   R.root.position.z=solved.z;
+
+  /* STANDING ON A RIPE BED HARVESTS IT. Checked here, immediately after the
+     position is settled, so it happens on the very frame the farmer crosses
+     into the field — the owner asked for it "at the exact moment farmer
+     touches that circle and is inside that land".
+
+     This replaces tap-to-harvest as the main way to pick a crop. Tapping still
+     works and is left alone: it cannot double-harvest, because the first thing
+     harvest() does is clear `ready`.
+
+     PLOT_R is the painted soil's own radius, so the trigger edge and the visible
+     edge of the field are the same line. Patches are 9.5 apart and 6.88 across,
+     so they cannot overlap and the first match is the only match.
+
+     Also fires when a crop ripens UNDER a farmer who is already standing there.
+     That is deliberate: the alternative is a ripe crop at the player's feet
+     doing nothing until they step out and back in, which would read as broken. */
+  if(FARM_AUTOPICK) for(let i=0;i<S.unlockedPlots && i<plots3D.length;i++){
+    if(!S.plots[i] || !S.plots[i].ready) continue;
+    const wp=plotWorldPos(i);
+    const dx=solved.x-wp.x, dz=solved.z-wp.z;
+    if(dx*dx+dz*dz<=PLOT_R*PLOT_R){ harvest(i); break; }
+  }
 
   if(speed>1.6){
     const targetH=Math.atan2(R.vel.x,R.vel.z);
@@ -10414,6 +10600,8 @@ function updateCharacter(dt,t){
     if(act) act.timeScale = CLIP_GROUND_SPEED[want]
       ? clamp(speed/CLIP_GROUND_SPEED[want], 0.35, 2.2)
       : 1;
+    // After the pose is chosen, before anything reads the body's position.
+    clampToGround(R,dt);
     updateDust(R,dt,k);
     return;
   }
@@ -10831,14 +11019,11 @@ function updateWorldLife(dt,t){
       }
     }
   }
-  plots3D.forEach((g,i)=>{
-    if(i>=S.unlockedPlots) return;
-    if(S.plots[i].ready){
-      const ring=g.userData.ring;
-      ring.material.opacity=0.55+Math.sin(t*4+i)*0.35;
-      ring.scale.setScalar(1+Math.sin(t*4+i)*0.05);
-    }
-  });
+  /* THE RING PULSE STOOD HERE and is gone with the ring (2026-08-06). It faded
+     the ready-ring's opacity and scaled it 5% in and out, four times a second.
+     The owner asked for the circle not to move; this was the movement. The
+     plants still pulse individually — see syncCropInstances below — so a ready
+     bed is still alive, without a throbbing decal drawn over it. */
   /* The plants themselves pulse per-PLANT, inside syncCropInstances. It used
      to happen here, by scaling the whole 3x3 holder — which scaled the plants'
      spacing along with them, so a ready bed breathed in and out as a block
