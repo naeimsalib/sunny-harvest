@@ -3866,13 +3866,10 @@ html,body{margin:0;height:100%;overflow:hidden;touch-action:none;
    That exact mistake was made here and caught by `npm run serve`. */
 #verTag{position:absolute;right:11px;bottom:calc(env(safe-area-inset-bottom) + 9px);
   font-size:calc(10px * var(--ui));font-weight:800;color:rgba(74,60,40,0.5);
-  /* pointer-events:auto ONLY so the dev coin shortcut can be tapped — see
-     [DEV-CHEAT] in initSettings(). It was `none`, and the cost of changing it
-     is that taps in this one corner no longer reach the world behind it. The
-     badge is about 30x14 CSS pixels in the very corner, which is the smallest
-     target on screen and nothing is placed under it, so the trade is fine —
-     but it goes back to `none` when the cheat is removed. */
-  text-shadow:0 1px 0 rgba(255,255,255,0.45);pointer-events:auto;z-index:20;}
+  /* pointer-events:none — taps in this corner belong to the world behind it.
+     This was briefly `auto` so a dev coin shortcut could be tapped; the
+     shortcut was removed on 2026-08-08 and this went back with it. */
+  text-shadow:0 1px 0 rgba(255,255,255,0.45);pointer-events:none;z-index:20;}
 
 /* Shown only when the device cannot give us a 3D context. Opaque and above
    everything (the max z-index elsewhere is 200) so no HUD fragment shows
@@ -4469,7 +4466,7 @@ html,body{margin:0;height:100%;overflow:hidden;touch-action:none;
       <span id="coinCount">0</span>
     </div>
   </div>
-  <div id="verTag">v9.5</div>
+  <div id="verTag">v9.7</div>
   <div id="noWebGL">
     <div class="emoji">🌾</div>
     <h1>This browser can't show the farm</h1>
@@ -4497,7 +4494,7 @@ html,body{margin:0;height:100%;overflow:hidden;touch-action:none;
   <div id="miniMap">
     <div class="mmTrack" id="mmTrack">
       <span class="mmIcon" data-dot="0" style="left:20%;top:68%;">🌾</span>
-      <span class="mmIcon" data-dot="1" style="left:50%;top:30%;">🐑</span>
+      <span class="mmIcon lock" data-dot="1" style="left:50%;top:30%;">🐑</span>
       <span class="mmIcon lock" data-dot="2" style="left:82%;top:64%;">🏗️</span>
       <div id="mmDot"></div>
     </div>
@@ -4587,7 +4584,51 @@ const FARM = {
   crops:["carrot","tomato","sunflower"], cropValue:[5,12,30], growTime:6,
   costs:{ plot:{base:50,mult:2.3,max:6}, speed:{base:45,mult:2.0,max:5},
           seeds:{base:200,mult:5.0}, auto:{base:350,mult:2.8,max:3} },
-  startPlots:2, maxPlots:6
+  startPlots:2, maxPlots:9,
+  /* SIX BEDS ARE SOLD. THE LAST THREE ARE CLEARED BY HAND, AND THE SPLIT IS
+     THE WHOLE POINT OF THE WEST FIELD.
+
+     maxPlots is how many beds the FARM has; soldPlots is how many the shop will
+     ever sell. They were one number until the west field existed, and fusing
+     them is what would break the economy here: upgCost('plot') is
+     base * mult^level, so extending the SHOP to nine beds would price the ninth
+     at 7,413 coins — more than Level 2's whole 7,000-coin capstone — and the
+     plot curve would have to be re-tuned, which R2 says cascades.
+
+     Keeping the shop at six leaves that curve untouched (levels 0..3, exactly
+     as flow-verified) and makes the last three beds cost LABOUR instead:
+     three stumps, walked to and tapped. That is the third verb the early farm
+     was missing, and Workflow 2 step 4 asks for an ACTION over a purchase.
+
+     The coin sink is the one-time fence push below, not the beds. */
+  soldPlots:6,
+  /* THE PRICE OF PUSHING THE FENCE OUT — the only new number in the economy,
+     and deliberately the only one, so anything verify:flow reports afterwards
+     is attributable to this or to the three extra beds and nothing else.
+
+     Township's model, from DECISIONS 2026-08-06: the LEVEL is the wall and the
+     coin cost is not. So the WALL is owning all six beds; the price is only
+     what makes it a save rather than a receipt.
+
+     11,000 IS MEASURED, NOT CHOSEN. Swept through verify:flow at 1,200 / 3,000 /
+     5,000 / 7,000 / 9,000 / 10,000 / 11,000, reading Level 1's length and the
+     instant-task list at each:
+
+         1,200 -> 2m21s     7,000 -> 4m42s     10,000 -> 5m15s
+         3,000 -> 2m25s     9,000 -> 5m04s     11,000 -> 5m31s
+         5,000 -> 3m00s
+
+     Price alone was never going to be enough — that whole left column is the
+     evidence for moving "Collect 7,000 coins" down a level instead, which is
+     what actually fixed the pacing. What the price decides is the HANDOVER:
+     below 11,000 the player walks into Level 2 still holding the 6,000 the
+     meadow costs, and "Unlock the Meadow!" completes in zero seconds. At
+     11,000 it does not. That is the number's whole job.
+
+     Sanity against the curve it replaces: extending the plot curve to nine beds
+     would have priced them at 3,223 + 7,413 + 17,051 = 27,687 together. This is
+     three beds and a bigger farm for 11,000 and some work. */
+  expandCost:11000
 };
 const MEADOW = {
   unlockCost: 6000, woolBase: 60, woolTime: 25,
@@ -4638,7 +4679,24 @@ const TASK_CHAIN = [
   { id:'t3',  icon:'💰', iconAsset:'coin', title:'Collect 250 coins',          type:'counter', ev:'coins',   n:250, rMin:1.2 },
   { id:'t4',  icon:'🍅', title:'Better Seeds — Tomatoes',    type:'state',   check:s=>s.cropTier>=1, rMin:1.5 },
   { id:'t5',  icon:'🧺', title:'Harvest 15 crops',           type:'counter', ev:'harvest', n:15,  rMin:1.5 },
-  { id:'t6',  icon:'📺', title:'Watch 1 ad',                 type:'counter', ev:'ad',      n:1,   rMin:2.0 },
+  /* WAS "Watch 1 ad". REWARDED ADS NO LONGER GATE PROGRESSION (owner ruling,
+     2026-08-08). A level completes only when its whole set is emptied, so an ad
+     COUNTER made six ad views mandatory: a player who refused them could never
+     finish Level 1, never reach Level 2, and therefore never unlock the meadow
+     -- half the game, behind a wall the design document's own pillar 4 says
+     does not exist ("never required to progress"). The ads stay, and stay
+     worth taking; they just cannot be the thing standing in the way.
+     Replaced with the EARN track's missing rung. 250 -> 700 -> 1,800 -> 7,000
+     is the ramp; this is the step that was being skipped. Not a harvest counter,
+     deliberately: the two notes below record harvesting here being measured
+     three times and pre-satisfying t11 every time, and re-measuring it on
+     2026-08-08 reproduced that exactly -- harvest 25 here gave FIVE instant
+     tasks against four, adding t10.
+
+     SWEPT, and the number turned out not to be the lever: 350 / 500 / 700 /
+     1,000 / 1,400 all completed the chain and all landed on the same instant
+     list. 700 is kept because it is the honest rung between 250 and 1,800. */
+  { id:'t6',  icon:'💰', iconAsset:'coin', title:'Collect 700 coins',          type:'counter', ev:'coins',   n:700, rMin:2.0 },
   /* WAS "Own 4 plots", and it was the emptiest task in the game: a halfway
      point between t2's three plots and t13's six, arriving at 59s when the
      player already had three and the fourth cost 40 coins more than they were
@@ -4663,7 +4721,23 @@ const TASK_CHAIN = [
      — harvest and buy — so any task placed there either duplicates a harvest
      counter or is a quick purchase. More distinct things to DO early is
      content, not a number. */
-  { id:'t7',  icon:'🟫', title:'Own 4 plots',                type:'state',   now:s=>s.unlockedPlots, goal:4, check:s=>s.unlockedPlots>=4, rMin:1.5 },
+  /* RESOLVED 2026-08-08, AND THE ANSWER WAS THE ONE THE NOTE ABOVE PREDICTED.
+     "Own 4 plots" is gone, and it was not replaced with a bigger number — the
+     two notes above are the record of that being tried twice and measured
+     backwards both times. What it is replaced with is the SIX-plot goal moved
+     up from the end of the level, which costs nothing to move (Workflow 1
+     step 5) and is a real save here: the player reaches this slot holding a few
+     hundred coins, and the fifth and sixth beds cost 609 and 1,401.
+
+     At the END of the level it was a receipt — measured active for one second,
+     because a player buying plots for every other task already had six by the
+     time it appeared. Here it is the thing they are saving for. Same task, same
+     number, different position: exactly the lever the workflow says to reach
+     for first.
+
+     It also now GATES the west field, which is what gives the back half of the
+     level somewhere to go. */
+  { id:'t7',  icon:'🟫', title:'Fill the farm — 6 plots',    type:'state',   now:s=>s.unlockedPlots, goal:6, check:s=>s.unlockedPlots>=6, rMin:1.5 },
   /* Lv 2 -> Lv 4. Two levels cost 135 and the player reaches this task holding
      346, so it was bought before it was read: active for one second. Four levels
      cost 675, which is roughly twice what they have — so it becomes something to
@@ -4694,10 +4768,49 @@ const TASK_CHAIN = [
      agree, and a wrapped definition is invisible to it. Three model checks
      failed on exactly that before this was flattened. */
   { id:'t11', icon:'🧑‍🌾', title:'Earn a farmhand',            type:'state',   now:s=>s.lifeHarvest, goal:40, check:s=>(s.workers||[]).length>=1, rMin:2.0 },
-  { id:'t12', icon:'📺', title:'Watch 2 ads',                type:'counter', ev:'ad',      n:2,   rMin:2.5 },
-  { id:'t13', icon:'🟫', title:'Fill the farm — 6 plots',    type:'state',   now:s=>s.unlockedPlots, goal:6, check:s=>s.unlockedPlots>=6, rMin:2.5 },
+  /* WAS "Watch 2 ads" -- see t6 for why no task counts ad views any more.
+     A harvest counter is safe HERE and was not safe at t6: the note above
+     records it pre-satisfying t11 "Earn a farmhand" every time it was tried
+     earlier, because the farmhand arrives at 40 lifetime harvests whatever the
+     tasks ask. This slot is AFTER t11, so that trap is behind us, and it
+     completes the ramp the same note named as the right one: 5, 15, 30, 60, 90. */
+  { id:'t12', icon:'🧺', title:'Harvest 30 crops',           type:'counter', ev:'harvest', n:30,  rMin:2.5 },
+  /* THE BACK THIRD OF LEVEL 1, ADDED 2026-08-08. The level ran 2m16s against
+     Level 2's 19m27s and the cause was named rather than guessed: the crop farm
+     had exactly two verbs, harvest and buy, so every task placed in it was
+     either a harvest counter or a quick purchase. These three are the content
+     that was missing, in the order they are played.
+
+     t13 uses the six beds the player has just finished buying — 5, 15, 60 is a
+     real ramp and this is the first task that needs a FULL farm to be pleasant.
+     t14 is the coin sink: 1,200 is the only new price in the economy.
+     t15 is the third verb and the capstone, and it is deliberately an ACTION
+     rather than a purchase (Workflow 2 step 4). It rides the 'stump' event that
+     clearStump() already emits, so it needs no predicate of its own and gets a
+     real progress bar for free.
+
+     THE CAPSTONE IS VISIBLE IN THE WORLD, which is Workflow 1 step 2 and the
+     reason it is this and not the coin total that follows: a player can look at
+     the farm and see the fence further out and nine beds working. A bank
+     balance is not something you can look at. */
+  { id:'t13', icon:'🧺', title:'Harvest 60 crops',           type:'counter', ev:'harvest', n:60,  rMin:2.5 },
+  /* "COLLECT 7,000 COINS" MOVED DOWN INTO LEVEL 1 on 2026-08-08, and moving it
+     is the whole repair — Workflow 1 step 5, the cheap lever.
+
+     Pricing the west field alone could not do it: swept at 1,200 / 3,000 /
+     5,000 / 7,000 the level only went 2m21s -> 2m25s -> 3m00s -> 3m22s, because
+     income compounds faster than one price can absorb. Moving one task across
+     the boundary costs nothing and re-tunes nothing.
+
+     It belongs here on its own merits: it is the CROP farm's money, saved for
+     the crop farm's last piece of ground, and it used to open Level 2 by
+     funding a meadow the player had not been introduced to yet. Level 1 still
+     does not END on it — a bank balance is not something you can look at — it
+     ends two tasks later on ground the player cleared by hand. */
   { id:'t14', icon:'💰', iconAsset:'coin', title:'Collect 7,000 coins',        type:'counter', ev:'coins',   n:7000, rMin:2.5 },
-  { id:'t15', icon:'🐑', title:'Unlock the Meadow!',         type:'state',   check:s=>s.meadowOpen, rMin:3.0 },
+  { id:'t15', icon:'🪓', title:'Buy the West Field',         type:'state',   check:s=>s.farmExpanded, rMin:2.5 },
+  { id:'t16', icon:'🌱', title:'Clear the west field',       type:'counter', ev:'stump',   n:3,   rMin:2.5 },
+  { id:'t17', icon:'🐑', title:'Unlock the Meadow!',         type:'state',   check:s=>s.meadowOpen, rMin:3.0 },
   /* WAS "Buy your first sheep", a purchase the player makes the second the
      meadow opens whether or not anything asks them to. Measured: it appeared
      with 5,757 coins in the bank against a sheep costing 1,800, so it resolved
@@ -4708,15 +4821,21 @@ const TASK_CHAIN = [
      satisfied by having money: you must buy the sheep, wait for the wool to
      grow, walk to the meadow and do it. It also introduces the shear action
      one step before t17 asks for ten of them. */
-  { id:'t16', icon:'✂️', title:'Shear your first sheep',    type:'counter', ev:'wool',    n:1,   rMin:2.0 },
-  { id:'t17', icon:'🧶', title:'Collect 10 wool',            type:'counter', ev:'wool',    n:10,  rMin:2.0 },
-  { id:'t18', icon:'🐑', title:'Grow the flock — 3 sheep',   type:'state',   now:s=>s.sheep.length, goal:3, check:s=>s.sheep.length>=3, rMin:2.5 },
-  { id:'t19', icon:'📺', title:'Watch 3 ads',                type:'counter', ev:'ad',      n:3,   rMin:3.0 },
-  { id:'t20', icon:'🧶', title:'Collect 30 wool',            type:'counter', ev:'wool',    n:30,  rMin:2.5 },
-  { id:'t21', icon:'✨', title:'Upgrade Wool Quality',       type:'state',   check:s=>s.meadowLv.wool>=1, rMin:2.5 },
-  { id:'t22', icon:'💰', iconAsset:'coin', title:'Collect 30,000 coins',       type:'counter', ev:'coins',   n:30000, rMin:3.0 },
-  { id:'t23', icon:'🐑', title:'Full flock — 5 sheep',       type:'state',   now:s=>s.sheep.length, goal:5, check:s=>s.sheep.length>=5, rMin:3.0 },
-  { id:'t24', icon:'🧺', title:'Harvest 90 crops',           type:'counter', ev:'harvest', n:90,  rMin:3.0 }
+  { id:'t18', icon:'✂️', title:'Shear your first sheep',    type:'counter', ev:'wool',    n:1,   rMin:2.0 },
+  { id:'t19', icon:'🧶', title:'Collect 10 wool',            type:'counter', ev:'wool',    n:10,  rMin:2.0 },
+  { id:'t20', icon:'🐑', title:'Grow the flock — 3 sheep',   type:'state',   now:s=>s.sheep.length, goal:3, check:s=>s.sheep.length>=3, rMin:2.5 },
+  /* WAS "Watch 3 ads" -- see t6. This one had a real content gap waiting for it:
+     Quick Shears was the ONLY item in either shop that no task had ever asked
+     for (plots, seeds, growth, the west field, the meadow, sheep and wool
+     quality all have one). So the meadow's own upgrade ladder was half
+     invisible. It is a BUILD task in a level whose other BUILD tasks are the
+     flock, which keeps the three tracks apart. */
+  { id:'t21', icon:'✂️', title:'Buy Quick Shears',           type:'state',   check:s=>s.meadowLv.shear>=1, rMin:3.0 },
+  { id:'t22', icon:'🧶', title:'Collect 30 wool',            type:'counter', ev:'wool',    n:30,  rMin:2.5 },
+  { id:'t23', icon:'✨', title:'Upgrade Wool Quality',       type:'state',   check:s=>s.meadowLv.wool>=1, rMin:2.5 },
+  { id:'t24', icon:'💰', iconAsset:'coin', title:'Collect 30,000 coins',       type:'counter', ev:'coins',   n:30000, rMin:3.0 },
+  { id:'t25', icon:'🐑', title:'Full flock — 5 sheep',       type:'state',   now:s=>s.sheep.length, goal:5, check:s=>s.sheep.length>=5, rMin:3.0 },
+  { id:'t26', icon:'🧺', title:'Harvest 90 crops',           type:'counter', ev:'harvest', n:90,  rMin:3.0 }
 ];
 
 /* ---------- P6.2 — where a task is ACHIEVED ----------
@@ -4725,27 +4844,71 @@ const TASK_CHAIN = [
    there (P6.1), which answers the one question the chip cannot: "…and where do
    I do that?".
 
-   THREE TASKS ARE DELIBERATELY ABSENT: t6, t12 and t19 are the ad tasks, and
-   the ad buttons live in the #rightRail DOM, not in the 3D world. There is no
-   place to pan to, so there is no ENTRY — not a null, not a zero coordinate.
-   "Nowhere" must not be representable as a place: a {x:0,z:0} would pan to the
-   dead centre of the map and read as a bug, and a null would make every reader
-   of this map handle a case that has no meaning. Absence is the honest
-   encoding, and panTargetFor() returns null for anything it cannot name.
-   21 entries, therefore, not 24.
+   PAN_NONE IS "DELIBERATELY NOWHERE", AND NOTHING USES IT TODAY. It existed for
+   the three ad tasks, whose buttons live in the #rightRail DOM rather than in
+   the 3D world. Those tasks were replaced on 2026-08-08 when rewarded ads
+   stopped gating progression, so every task in the chain now names a real
+   place. The sentinel STAYS: the next task that genuinely has nowhere to go
+   must be able to say so out loud rather than by being missing.
+
+   This was absence until 2026-08-08, on the reasoning that "nowhere" must not
+   be representable as a place. That half was right: a {x:0,z:0} would pan to the
+   dead centre of the map and read as a bug. But absence made "deliberately
+   nowhere" and "somebody forgot" the same thing, and then both happened at once:
+   the chain was renumbered, t25 and t26 were never added, and the map still
+   named t19 as an ad task when the third ad task had become t21. Nothing could
+   detect either, because a missing entry was indistinguishable from an
+   intentional one. With PAN_NONE, a missing id is a BUILD FAILURE (check 6.2),
+   and every task in the chain must state its answer to "…and where do I do
+   that?" — even when the answer is "not in the world".
+
+   EVERY id in TASK_CHAIN appears here. 26 entries, and the verifier derives
+   that count from the chain rather than being told it.
 
    The values are ANCHOR KEYS wherever the thing being bought is a world button,
    so the pan and the button can never drift apart. `farm.beds` is the one
    exception — the crop beds carry no purchase button once they are unlocked, so
    it is resolved from ZONES[0] rather than hard-coded, which keeps it in the
    same coordinate system as everything else instead of inventing a new one. */
+const PAN_NONE='none';               // deliberately nowhere — not "forgotten"
 const TASK_PAN={
-  t1:'farm.beds',   t2:'plot',         t3:'farm.beds',    t4:'farm.seeds',
-  t5:'farm.beds',   /* t6 = ad */      t7:'plot',         t8:'farm.speed',
-  t9:'farm.beds',   t10:'farm.seeds',  t11:'farm.beds',   /* t12 = ad */
-  t13:'plot',       t14:'farm.beds',   t15:'meadow.open', t16:'meadow.sheep',
-  t17:'meadow.sheep', t18:'meadow.sheep', /* t19 = ad */  t20:'meadow.sheep',
-  t21:'meadow.wool', t22:'farm.beds',  t23:'meadow.sheep', t24:'farm.beds'
+  /* ---- Level 1: the crop farm ---- */
+  t1:'farm.beds',    // harvest 5
+  t2:'plot',         // own 3 plots      -> the next locked bed's button
+  t3:'farm.beds',    // coins            -> where coins come from
+  t4:'farm.seeds',
+  t5:'farm.beds',    // harvest 15
+  t6:'farm.beds',    // collect 700 coins -> where coins come from
+  t7:'plot',         // fill the farm
+  t8:'farm.speed',
+  t9:'farm.beds',    // coins
+  t10:'farm.seeds',
+  t11:'farm.beds',   // earn a farmhand  -> earned by harvesting
+  t12:'farm.beds',   // harvest 30
+  t13:'farm.beds',   // harvest 60       -- WAS 'plot'. t13 was a plot task before
+                     //                     the 2026-08-08 renumbering; it is a
+                     //                     harvest counter now.
+  t14:'farm.beds',   // coins
+  t15:'expand',      // BUY the west field -- WAS 'meadow.open', which flew the
+                     //                     camera to the sheep meadow, the far
+                     //                     side of the map from the thing being
+                     //                     bought. 'expand' is the West Field
+                     //                     button, standing on the ground it buys.
+  t16:'expand',      // CLEAR the west field -- WAS 'meadow.sheep'. The button is
+                     //                     hidden once bought, but the anchor
+                     //                     survives and its pos() is the middle
+                     //                     of the three stumps: exactly right.
+  /* ---- Level 2: the meadow and the flock ---- */
+  t17:'meadow.open', // unlock the meadow -- WAS 'meadow.sheep' (the gate, not the flock)
+  t18:'meadow.sheep',
+  t19:'meadow.sheep',// collect 10 wool  -- WAS ABSENT, wrongly called an ad task
+  t20:'meadow.sheep',
+  t21:'meadow.shear',// buy Quick Shears -- the meadow's own upgrade button
+  t22:'meadow.sheep',// collect 30 wool  -- WAS 'farm.beds'; wool comes from sheep
+  t23:'meadow.wool', // upgrade wool quality -- WAS 'meadow.sheep'
+  t24:'farm.beds',   // coins, same convention as t3/t9/t14
+  t25:'meadow.sheep',// full flock       -- WAS ABSENT
+  t26:'farm.beds'    // harvest 90       -- WAS ABSENT
 };
 // A level is one authored SET of tasks (decision D1). Level 1's set is the
 // 24-task chain above, used UNCHANGED (decision D2) — that is the whole reason
@@ -4788,7 +4951,10 @@ const TASK_PAN={
    It also surfaces Wool Quality and Quick Shears — around 113,000 coins of
    upgrades that already exist in the meadow shop and that no task has ever
    mentioned. Level 2 is where they finally have somewhere to be. */
-const LEVEL_1_LEN = 13;                       // t1..t13 — the whole crop farm
+// 13 -> 16 on 2026-08-08: the west field added a third verb and three tasks to
+// the back of the crop farm. t1..t16 — the whole crop farm, ending on ground the
+// player cleared by hand.
+const LEVEL_1_LEN = 16;                       // t1..t16 — the whole crop farm
 const TASK_SETS=[ TASK_CHAIN.slice(0, LEVEL_1_LEN), TASK_CHAIN.slice(LEVEL_1_LEN) ];
 
 // The set the player is currently working through, or null once they have
@@ -5028,6 +5194,40 @@ const ZONES=[
   {name:'build',  cx: 48, cz:14, hx:13, hz:11}
 ];
 
+/* THE WEST FIELD'S GEOMETRY, DERIVED — NOT A SECOND SET OF COORDINATES.
+
+   ZONES[0] stays exactly as it is, and that is deliberate: plotWorldPos() reads
+   its cx/cz, so moving the zone itself would move all six existing beds. The
+   fence is the only thing that grows, so only the fence gets a second shape.
+
+   PUSH_Z is one grid step (9.5), the same spacing the bed rows use, so the new
+   row lands where the grid says it should rather than where it was nudged to.
+   The north edge is held still — cz and hz both move by half the push — because
+   the barn sits on that run and its gap is expressed in local x.
+
+     before   z from  1 to 31    row 0 at z=11.5, row 1 at z=21
+     after    z from  1 to 40.5  row 2 at z=30.5, bed spans 26.5..34.5
+
+   which leaves 6 units of clear grass between the new bed and the new fence,
+   so the row does not read as pressed up against it. */
+const PUSH_Z = 9.5;
+const farmFenceZone = () => {
+  const z0 = ZONES[0];
+  if(!S || !S.farmExpanded) return z0;
+  return { ...z0, cz: z0.cz + PUSH_Z/2, hz: z0.hz + PUSH_Z/2 };
+};
+/* Where the three west-field beds are, as plot indices. Stated once so the
+   stumps, the soil paint and the unlock all count the same three. */
+const WEST_FIRST = 6;
+const STUMP_COUNT = 3;
+const STUMP_ALL = (1 << STUMP_COUNT) - 1;          // 0b111
+const stumpGone = k => !!(S && (S.stumpMask & (1 << k)));
+const stumpsDone = () => { let n=0, m=(S&&S.stumpMask)|0; while(m){ n+=m&1; m>>=1; } return n; };
+/* The one definition of "the west field is worked". Everything that changes at
+   that moment — the soil paint, the three beds, the neighbour who turns up —
+   reads THIS, so none of them can drift apart from the others. */
+const westFieldOpen = () => !!(S && (S.stumpMask & STUMP_ALL) === STUMP_ALL);
+
 /* WALK ROUTES FOR A FUTURE NPC — reference data, nothing reads this yet.
 
    Ambient villagers were removed on the owner's instruction ("NPC will be meant
@@ -5233,6 +5433,24 @@ function newState(){
     setIdx:0, setDone:0, setNext:openWindow(0).length,
     plots:Array.from({length:FARM.maxPlots},newPlot),
     unlockedPlots:FARM.startPlots, cropTier:0,
+    /* THE WEST FIELD, in two steps that must not be fused.
+
+       `farmExpanded` is the fence: bought once, it moves the farm's south run
+       out by one grid step and reveals rough ground. `stumpMask` is the work
+       done on that ground.
+
+       They are separate because the reward is separate: paying moves the FENCE,
+       working turns the ground into BEDS. Fusing them would make the purchase
+       hand over three plots for coins, which is the receipt-shaped thing this
+       whole change exists to stop.
+
+       stumpMask IS A BIT PER STUMP, NOT A COUNT, and that is not tidiness — a
+       count cannot say WHICH stump went. Each stump stands on the bed it will
+       become, so clearing the middle one and reloading has to leave the middle
+       gap: with a count, the survivors would be redrawn as "the first two" and
+       the stumps would appear to have shuffled sideways overnight. One integer,
+       sanitiser-safe, and it survives a reload exactly as the player left it. */
+    farmExpanded:false, stumpMask:0,
     upgLevels:{plot:0,speed:0,seeds:0,auto:0},
     meadowOpen:false, sheep:[], meadowLv:{wool:0,shear:0,auto:0},
     autoTimer:0, boostUntil:0, superBotUntil:0,
@@ -5302,6 +5520,18 @@ function eps(){return farmEPS()+(S.meadowOpen?meadowEPS():0);}
 function rushAmount(){
   const v=Math.round(eps()*RUSH_MINUTES*60/10)*10;
   return isFinite(v)&&v>20 ? v : 20;
+}
+/* THE LEVEL BONUS, GUARDED LIKE ITS SIBLINGS. This was the last payout in the
+   file still written as `Math.max(50, Math.round(eps()*120/10)*10)` inline in
+   farmLevelUp(). Math.max(50, NaN) is NaN -- exactly the trap rushAmount() and
+   taskReward() above were rewritten to avoid, and it was simply missed when
+   they were. A NaN here is the worst of the three: it lands on the ONE screen
+   the player cannot dismiss without collecting, adds NaN to the balance, and
+   then serialises to null and zeroes their fortune on the next launch.
+   Same shape as the other two: state the safe condition, and negate. */
+function levelBonus(){
+  const v=Math.round(eps()*120/10)*10;
+  return isFinite(v)&&v>50 ? v : 50;
 }
 function boostOn(){return now()<S.boostUntil;}
 function superBotOn(){return now()<S.superBotUntil;}
@@ -5453,10 +5683,21 @@ function claimTask(slot,mult){
   if(!def||!taskComplete(def)) return;
   // Snapshot the chip while it is still on screen and still gold (BACKLOG 3.7).
   const chip=$('#taskStrip .task[data-task-id="'+def.id+'"]');
-  const reward=taskReward(def)*mult;
+  /* THE MULTIPLIER IS NORMALISED, NOT TRUSTED. taskReward() is carefully
+     guarded -- it returns a finite number or its floor, precisely so a payout
+     can never be NaN -- and then this line multiplied it by a parameter with no
+     guard at all. Both UI call sites pass 1 or 2, so it was not reachable by
+     playing; a call with the argument omitted made `reward` NaN, added NaN to
+     the balance, and the coin counter read "NaN" from then on. That is the same
+     class of fault that has already cost this project a release of frozen
+     animations and, separately, a purchase path that zeroed a player's coins:
+     a guard immediately undone by the unguarded thing next to it.
+     Found on 2026-08-08 by driving a real browser rather than by reading. */
+  const m = (mult===2) ? 2 : 1;
+  const reward=taskReward(def)*m;
   S.coins+=reward;
   taskEvent('coins',reward);
-  coinFountain(innerWidth/2, 150, mult===2?10:6);
+  coinFountain(innerWidth/2, 150, m===2?10:6);
   popText(innerWidth/2, 132, '+'+fmt(reward)+' 💰', '#f5a623');
   bump($('#coinPill'));
   farmerCheer();
@@ -5502,11 +5743,18 @@ function farmLevelUp(){
   S.setNext = S.taskIdx.length;
   fireworks(); flash();
   sfx('levelUp'); haptic('heavy');
-  const bonus=Math.max(50,Math.round(eps()*120/10)*10);
+  const bonus=levelBonus();
+  /* WHAT THE LEVEL GRANTS, SAID OUT LOUD. A level-up that hands over coins and
+     nothing else makes the level itself feel like a receipt — and the right to
+     open the meadow is now genuinely held behind this moment (see the Unlock
+     Meadow item), so the panel is the only place the player is told. Read from
+     the level rather than hard-coded, so a third level cannot silently keep
+     announcing the second one's reward. */
+  const grants={2:'The Meadow is open to buy — sheep and wool await! 🐑'}[S.farmLevel];
   const ov=document.createElement('div'); ov.className='overlay';
   ov.innerHTML=`<div class="panel">
     <h1>Farm Level ${S.farmLevel}! 🎉</h1>
-    <h2>Your farm business is growing!</h2>
+    <h2>${grants||'Your farm business is growing!'}</h2>
     <div style="font-size:38px;margin:2px 0;">🏅</div>
     <div style="font-size:21px;font-weight:800;color:var(--coin);margin-bottom:6px;">Bonus +${fmt(bonus)}</div>
     <button class="bigBtn adBtn" id="lvlX2">📺 Watch Ad — Collect ×2</button>
@@ -5800,7 +6048,8 @@ function offlineWelcome(){
 }
 
 /* =====================================================================
-   ██ 3D WORLD ██  — all models generated by us (no external assets)
+   ██ 3D WORLD ██  — every model is ours: organic from Meshy, architectural
+   from the forge (CLAUDE.md R3). Nothing is assembled from primitives here.
    ===================================================================== */
 
 /* ---------------------------------------------------------------------
@@ -6314,9 +6563,16 @@ const PLAYER_R=0.42;
    blocker() is the raw entry point and never did. Same guard, same shape, so
    the two agree. A rejected blocker is one object you can walk through, which
    is a trivial fault next to an invisible world. */
-function blocker(x,z,r){
+function blocker(x,z,r,tag){
   if(!(r>0.05)||!isFinite(x)||!isFinite(z)) return;
-  BLOCKERS.push({x:x,z:z,r:r});
+  /* `tag` exists for ONE reason: the farm fence can move at runtime when the
+     west field is bought, and its old collision discs have to go with it. An
+     untagged blocker is a fixed disc written once by buildWorld() and is never
+     removed, which is every other caller. Tagging rather than rebuilding the
+     whole list keeps buildWorld() the single writer of everything else —
+     re-running buildWorld() is NOT safe, because it scene.add()s without
+     removing and would duplicate the entire world. */
+  BLOCKERS.push({x:x,z:z,r:r,tag:tag});
 }
 
 /* MAKE A PLACED OBJECT SOLID, sized from what it actually is.
@@ -6394,6 +6650,10 @@ let renderer, scene, camera, ray=new THREE.Raycaster(), tapV=new THREE.Vector2()
 // iterated nothing every frame. An empty array with a loop over it reads as a
 // feature that is switched off; it was a feature with no parts left.
 let FarmerRig=null, plots3D=[], sheep3D=[], clouds3D=[], butterflies=[], dust=[];
+/* The three fields that can be REPLACED after boot, all of them because the
+   west field's fence moves. Everything else in the scene is written once by
+   buildWorld() and never touched again. */
+let fenceFields=[], shadowField=null, stumps3D=[], groundMesh=null;
 /* EVERY MATERIAL COLOUR IN THE GAME GOES THROUGH HERE.
    That is deliberate and worth protecting: it means the colour pipeline can be
    corrected in one place instead of chasing several hundred hex values.
@@ -6790,7 +7050,17 @@ function makeGroundTexture(){
   };
   // Same grid plotWorldPos() uses. Stated here rather than derived because the
   // ground texture is painted long before any plot exists.
-  for(let i=0;i<6;i++){
+  /* SIX BEDS, OR NINE ONCE THE WEST FIELD HAS BEEN CLEARED.
+
+     Painted, not modelled, so the three new beds cannot simply be switched on:
+     the texture has to be repainted and swapped. That is what makes clearing
+     the last stump worth doing — the ground itself changes from rough grass to
+     worked soil, in one visible step, rather than three beds fading in.
+
+     Read through westFieldOpen() rather than S.stumpsCleared directly so the
+     paint and the unlock can never disagree about what "cleared" means. */
+  const beds = westFieldOpen() ? FARM.maxPlots : 6;
+  for(let i=0;i<beds;i++){
     soilPatch(ZONES[0].cx-9.5+(i%3)*9.5, ZONES[0].cz-4.5+Math.floor(i/3)*9.5);
   }
   const tex=new THREE.CanvasTexture(cv); tex.anisotropy=8;
@@ -7006,7 +7276,10 @@ function makeRock(){
    why that matters here. Adding one mesh per object would have made the
    cheapest visual win in the milestone into the most expensive. */
 const GROUND_SHADOWS=[];
-function groundShadow(x,z,r){ GROUND_SHADOWS.push({x:x,z:z,r:r}); }
+// `tag` for the same reason blocker() has one: the farm fence's post shadows
+// have to move when the fence does, or a row of soft dark ellipses is left
+// sitting on bare grass where the old boundary used to be.
+function groundShadow(x,z,r,tag){ GROUND_SHADOWS.push({x:x,z:z,r:r,tag:tag}); }
 
 function makeShadowTexture(){
   const cv=document.createElement('canvas'); cv.width=cv.height=64;
@@ -7325,7 +7598,7 @@ const SHEEP_FACING=0;
    field. Identical geometry, one continuous form: the lobes stop catching
    light individually and the body reads as skin. This is exactly what the
    Forge's spherify_normals() does to a grown object, applied at load time to a
-   generated one -- processing an asset, not authoring a shape (rule 2.5).
+   generated one -- processing an asset, not authoring a shape (R3).
 
    Two generated shorn sheep were tried before this and both were rejected at
    the preview gate: a boxy blob, then a lumpy droopy-headed one. Neither read
@@ -8323,7 +8596,10 @@ function buildWorld(){
   const groundMat=new THREE.MeshPhongMaterial({map:makeGroundTexture(),
                                                shininess:0, specular:0x000000});
   applyGroundDetail(groundMat);
+  // Held: clearing the west field repaints this texture, and the mesh has to be
+  // reachable to swap the map on.
   const ground=new THREE.Mesh(new THREE.PlaneGeometry(WORLD.w,WORLD.h), groundMat);
+  groundMesh=ground;
   ground.rotation.x=-Math.PI/2; ground.receiveShadow=true; scene.add(ground);
   const skirt=new THREE.Mesh(new THREE.PlaneGeometry(WORLD.w*3,WORLD.h*3),M(0x5fa63a));
   skirt.rotation.x=-Math.PI/2; skirt.position.y=-0.06; skirt.receiveShadow=true; scene.add(skirt);
@@ -8502,7 +8778,10 @@ function buildWorld(){
   /* The barn is 8 wide and centred on local x=-4, so the fence stops at -8.6
      and picks up again at 0.6 -- a little proud of the walls on each side so
      the rails meet the timber rather than floating a hair off it. */
-  ringFence(ZONES[0], {from:-8.6, to:0.6});
+  /* farmFenceZone(), not ZONES[0]: the south run sits further out once the west
+     field is bought. The barn gap is in LOCAL x and cx never moves, so the gap
+     is unaffected by the push. */
+  ringFence(farmFenceZone(), {from:-8.6, to:0.6}, 'farm');
 
   /* meadow */
   ringFence(ZONES[1]);
@@ -9031,7 +9310,14 @@ function buildWorld(){
   spawnFactoryObjects();
   /* The fence, drawn once now that every zone has been ringed: all the posts
      in one call and all the rails in another. */
-  buildFences().forEach(m=>scene.add(m));
+  /* The west field's stumps, if the fence has already been pushed out on this
+     save. BEFORE the two fields below, because a stump registers a collision
+     disc and a contact shadow and both of those are collected into fields that
+     are built once, just below. */
+  buildStumps();
+  // Held, not just added: pushing the fence out replaces these two fields, and
+  // a field that was never kept a reference to cannot be removed from a scene.
+  fenceFields=buildFences(); fenceFields.forEach(m=>scene.add(m));
   /* The planting, likewise: every bed's positions are registered by now, so
      the whole farm's crops become a handful of instanced fields. */
   buildCropFields();
@@ -9041,7 +9327,7 @@ function buildWorld(){
      instanced field. Built here rather than beside each object for the same
      reason the bushes are: one draw call for the world instead of one per
      object. */
-  const shadowField=buildGroundShadows();
+  shadowField=buildGroundShadows();
   if(shadowField) scene.add(shadowField);
   FarmerRig.root.position.set(S.pos.x,0,S.pos.z);
   // 4C.2 — 1.55 x 0.75 = 1.16. The owner's words were "the character itself is
@@ -9131,7 +9417,7 @@ const RAIL_Y=[0.34, 0.68];
    They were right, and the numbers said so: the barn stood at z=-3 while the
    farm's fence runs at z=1, so it was FOUR UNITS OUTSIDE the enclosure -- a
    building near a farm rather than a building on it. */
-function ringFence(zone, northGap){
+function ringFence(zone, northGap, tag){
   const step=3.0, gate=4;
   const inGap = x => northGap && x>=northGap.from && x<=northGap.to;
   function rail(x1,z1,x2,z2){
@@ -9140,7 +9426,7 @@ function ringFence(zone, northGap){
       FENCE_RAILS.push({
         x:(x1+x2)/2, y:RAIL_Y[i], z:(z1+z2)/2,
         ry:Math.atan2(-(z2-z1),x2-x1),
-        len:len
+        len:len, tag:tag
       });
     }
     /* MAKE IT SOLID. The owner: "fences can be done through which it should
@@ -9167,14 +9453,14 @@ function ringFence(zone, northGap){
     const n=Math.max(2,Math.ceil(len/STEP));
     for(let i=0;i<n;i++){
       const t=i/(n-1);
-      blocker(x1+(x2-x1)*t, z1+(z2-z1)*t, R);
+      blocker(x1+(x2-x1)*t, z1+(z2-z1)*t, R, tag);
     }
   }
   const post=(x,z,s)=>{
-    FENCE_POSTS.push({x:x, z:z, s:s||1});
+    FENCE_POSTS.push({x:x, z:z, s:s||1, tag:tag});
     // The reference puts a soft shadow under everything, including its fence
     // posts, and that is what stops a fence line reading as a row of stickers.
-    groundShadow(x,z,0.16*(s||1));
+    groundShadow(x,z,0.16*(s||1),tag);
   };
   for(let x=-zone.hx;x<=zone.hx;x+=step){
     for(const zSide of [-zone.hz,zone.hz]){
@@ -9231,6 +9517,160 @@ function buildFences(){
   if(rails) out.push(rails);
   return out;
 }
+/* =====================================================================
+   THE WEST FIELD — the third verb.
+
+   The early farm had exactly two things to do, harvest and buy, and that is
+   the whole reason Level 1 ran two minutes against Level 2's nineteen. Adding
+   a bigger number to either verb was tried twice and measured backwards both
+   times (see the notes on t7 and t8 in TASK_CHAIN). This is the third verb.
+
+   It is deliberately the only one that is neither growing nor spending: you
+   walk to a stump and you tap it, and it takes three of them to open the
+   ground. The stumps stand ON the beds they will become, so the payoff is the
+   ground the player has been standing on turning into farmland.
+   ===================================================================== */
+// What a stump pays when it falls. Timber — small, immediate, and NOT the
+// reason to do it: the reason is the three beds at the end.
+const STUMP_PAY = 45;
+const stumpWorldPos = k => plotWorldPos(WEST_FIRST + k);
+
+/* Drawn from state every time rather than mutated in place, so the world and
+   S.stumpMask cannot disagree — the same reason sync3DFarm() exists. Safe to
+   call repeatedly: it removes whatever it made last time first. */
+function buildStumps(){
+  for(const m of stumps3D){ if(m && m.parent) m.parent.remove(m); }
+  stumps3D.length=0;
+  // Their collision discs and shadows go with them, or the player would walk
+  // into a stump that is no longer there.
+  for(let i=BLOCKERS.length-1;i>=0;i--) if(BLOCKERS[i].tag==='stump') BLOCKERS.splice(i,1);
+  for(let i=GROUND_SHADOWS.length-1;i>=0;i--) if(GROUND_SHADOWS[i].tag==='stump') GROUND_SHADOWS.splice(i,1);
+  if(!S.farmExpanded) return;
+  for(let k=0;k<STUMP_COUNT;k++){
+    if(stumpGone(k)) continue;
+    const m=makeStump();
+    // A missing model costs that stump, never the world — the same rule every
+    // other forged object follows. It would also make the field unclearable,
+    // so it is reported rather than absorbed.
+    if(!m){ console.error('the west field stump model is missing — that bed cannot be cleared'); continue; }
+    const p=stumpWorldPos(k);
+    m.position.set(p.x,0,p.z);
+    /* 2.6, against the 0.7-1.6 the scatter uses. A stump that reads as
+       dressing would be walked past; this one has to read as an OBSTACLE
+       standing on ground the player wants. Judged on screen, not chosen. */
+    m.scale.setScalar(2.6);
+    m.rotation.y=k*2.1;
+    m.userData.type='stump'; m.userData.idx=k;
+    scene.add(m); stumps3D.push(m);
+    blocker(p.x,p.z,1.6,'stump');
+    groundShadow(p.x,p.z,2.0,'stump');
+  }
+}
+
+/* Replaces the two instanced fields that can change after boot. Called when the
+   fence moves and when a stump falls.
+
+   NOT buildWorld(). That function scene.add()s without removing, so re-running
+   it would duplicate every object in the game — this rebuilds exactly the two
+   fields whose contents changed and nothing else. */
+function rebuildFieldsAfterChange(){
+  for(const m of fenceFields){ if(m && m.parent) m.parent.remove(m); }
+  fenceFields.length=0;
+  for(let i=BLOCKERS.length-1;i>=0;i--) if(BLOCKERS[i].tag==='farm') BLOCKERS.splice(i,1);
+  for(let i=GROUND_SHADOWS.length-1;i>=0;i--) if(GROUND_SHADOWS[i].tag==='farm') GROUND_SHADOWS.splice(i,1);
+  for(let i=FENCE_POSTS.length-1;i>=0;i--) if(FENCE_POSTS[i].tag==='farm') FENCE_POSTS.splice(i,1);
+  for(let i=FENCE_RAILS.length-1;i>=0;i--) if(FENCE_RAILS[i].tag==='farm') FENCE_RAILS.splice(i,1);
+  ringFence(farmFenceZone(), {from:-8.6, to:0.6}, 'farm');
+  buildStumps();
+  fenceFields=buildFences(); fenceFields.forEach(m=>scene.add(m));
+  if(shadowField && shadowField.parent) shadowField.parent.remove(shadowField);
+  shadowField=buildGroundShadows();
+  if(shadowField) scene.add(shadowField);
+}
+
+/* The soil is PAINTED into the ground texture, so opening the three beds means
+   repainting it. One canvas redraw on a once-per-game purchase. */
+function repaintGround(){
+  if(!groundMesh||!groundMesh.material) return;
+  const old=groundMesh.material.map;
+  groundMesh.material.map=makeGroundTexture();
+  applyGroundDetail(groundMesh.material);
+  groundMesh.material.needsUpdate=true;
+  // The old canvas texture is a GPU allocation; dropping the reference alone
+  // would leak it.
+  if(old&&old.dispose) old.dispose();
+}
+
+/* BUYING THE PUSH. The fence moves, the ground beyond it comes into the farm,
+   and three stumps are standing on it. No plots are granted here — that is the
+   whole point of keeping the purchase and the work apart. */
+/* THE GRANT ONLY — IT DOES NOT CHARGE, AND MUST NOT.
+
+   pressAnchor() does `S.coins -= cost; a.act();`, so the caller has already
+   taken the money by the time this runs. Deducting here as well would charge
+   twice for one fence, and the second charge would be invisible: the player
+   would simply be 1,200 coins poorer than the button said. */
+function openWestField(){
+  if(S.farmExpanded) return false;
+  S.farmExpanded=true;
+  rebuildFieldsAfterChange();
+  fireworks(); flash();
+  farmerSay('The west field is ours! Clear those stumps.', 2600);
+  sfx('buy'); haptic('heavy');
+  renderHeader(); renderTasks();
+  save();
+  return true;
+}
+
+/* CLEARING ONE STUMP. The farmer has to be standing close enough, exactly as
+   he does to pick a crop — the reach test is the same one, so being out of
+   range feels identical whichever of the three verbs you are using. */
+function clearStump(k){
+  if(!S.farmExpanded||stumpGone(k)) return false;
+  S.stumpMask|=(1<<k);
+  S.coins+=STUMP_PAY;
+  // Timber counts as coins earned, exactly like a crop does, so a coin task
+  // cannot be quietly starved by the player spending their time clearing.
+  taskEvent('coins',STUMP_PAY);
+  taskEvent('stump',1);
+  const p=stumpWorldPos(k);
+  const sp=worldToScreen(p.x,1.6,p.z);
+  popText(sp.x,sp.y,'+'+STUMP_PAY,'#ffd44d');
+  flyCoin(sp.x,sp.y); sparkBurst(sp.x,sp.y);
+  spawnDust(p.x,p.z); spawnDust(p.x+1.2,p.z-0.9); spawnDust(p.x-1.1,p.z+1.0);
+  // The same clip the harvest uses: a bend, a pull and a straighten. Pulling a
+  // stump is that action, and it is the only rigged action the farmer has that
+  // reads as physical work on the ground.
+  playAction('harvest', 1.1, p.x, p.z);
+  sfx('harvest'); haptic('medium');
+  const opened=westFieldOpen();
+  if(opened){
+    /* THE PAYOFF, AND IT IS ONE MOMENT ON PURPOSE. All three beds arrive
+       together with the soil they sit on, rather than fading in one at a time,
+       because the ground is a single painted texture and because "the field is
+       yours" is a better beat than three smaller ones.
+
+       unlockedPlots jumps to maxPlots rather than being incremented three
+       times: plot i is open iff i < unlockedPlots everywhere in this file, and
+       the three west beds open together, so one assignment says exactly that
+       and nothing has to learn a second rule. */
+    S.unlockedPlots=FARM.maxPlots;
+    repaintGround();
+    sync3DFarm();
+    fireworks(); flash(); farmerCheer();
+    farmerSay('Three new beds. The whole farm is working!');
+  }else{
+    farmerSay(`Stump down — ${STUMP_COUNT-stumpsDone()} to go.`);
+  }
+  rebuildFieldsAfterChange();
+  // A worker milestone fires on a full farm, so this has to be asked AFTER
+  // unlockedPlots moves — see WORKER_MILESTONES' neighbour entry.
+  announceWorkers(checkWorkerArrivals());
+  renderHeader(); renderTasks();
+  save();
+  return true;
+}
+
 function spawnSheep3D(){
   const z=ZONES[1];
   const sh=makeSheep();
@@ -9272,7 +9712,14 @@ function sync3DFarm(){
   const kind=FARM.crops[S.cropTier];
   plots3D.forEach((g,i)=>{
     const locked=i>=S.unlockedPlots;
-    g.userData.lock.visible=locked;
+    /* A PADLOCK MEANS "BUY ME", SO IT BELONGS ONLY ON A BED THE SHOP SELLS.
+       The west field's three are cleared, not bought, and the STUMP is their
+       lock. Caught by looking at a screenshot: a padlock was floating in the
+       middle of a stump, which says "pay" about the one thing in the game you
+       cannot pay for — and before the fence is pushed out those three beds are
+       outside the farm altogether, where a padlock would have been hanging over
+       open grass. */
+    g.userData.lock.visible=locked && i<FARM.soldPlots;
   });
 
   syncCropInstances();
@@ -10013,11 +10460,26 @@ function buildAnchors(){
   addAnchor({
     key:'plot',
     icon:'🟫',
-    pos:()=>{ const p=plotWorldPos(Math.min(S.unlockedPlots,FARM.maxPlots-1)); return {x:p.x,y:3.2,z:p.z}; },
-    hidden:()=>S.unlockedPlots>=FARM.maxPlots,
+    pos:()=>{ const p=plotWorldPos(Math.min(S.unlockedPlots,FARM.soldPlots-1)); return {x:p.x,y:3.2,z:p.z}; },
+    hidden:()=>S.unlockedPlots>=FARM.soldPlots,
     label:()=>'Buy Plot',
     cost:()=>shopItem(FARM_SHOP,'plot').cost(),
     act:()=>shopItem(FARM_SHOP,'plot').buy()
+  });
+
+  /* --- the west field's own button, standing ON the ground it buys ---
+     Not stacked at the farm hub with the upgrades: those are farm-WIDE and
+     this one is about a specific piece of ground the player can see from it.
+     Anchored to the middle of the three future beds so walking to the button
+     is walking to the field. */
+  addAnchor({
+    key:'expand',
+    icon:'🪓',
+    pos:()=>{ const p=plotWorldPos(WEST_FIRST+1); return {x:p.x,y:3.6,z:p.z}; },
+    hidden:()=>{ const it=shopItem(FARM_SHOP,'expand'); return it.hidden()||it.maxed(); },
+    label:()=>'West Field',
+    cost:()=>shopItem(FARM_SHOP,'expand').cost(),
+    act:()=>shopItem(FARM_SHOP,'expand').buy()
   });
 
   /* --- 4.5: the farm's earnings upgrades ---
@@ -10335,6 +10797,16 @@ function tapWorld(e){
         if(m && !withinReach(m.position.x,m.position.z)){ sayTooFar(); return; }
         collectWool(i); return;
       }
+    }
+    /* THE THIRD VERB. Measured from the stump's own centre with the same reach
+       test the crops and the sheep use, so "walk over" means the same distance
+       whichever of the three the player is reaching for. */
+    if(o.userData.type==='stump'){
+      const k=o.userData.idx;
+      if(stumpGone(k)) return;
+      const p=stumpWorldPos(k);
+      if(!withinReach(p.x,p.z)){ sayTooFar(); return; }
+      clearStump(k); return;
     }
   }
 }
@@ -10734,7 +11206,11 @@ function camFocusNow(){
 // x and z only — see the note above on why a y would tilt the camera.
 function panTargetFor(id){
   const key=TASK_PAN[id];
-  if(!key) return null;                       // ad tasks: absent from the map
+  // PAN_NONE is a task that deliberately has nowhere to go; undefined means the
+  // map and the chain have drifted, which the build refuses to ship. Both end
+  // the same way HERE -- silently -- because the player must never see a
+  // half-built map as a wobble or an error.
+  if(!key||key===PAN_NONE) return null;
   if(key==='farm.beds') return {x:ZONES[0].cx, z:ZONES[0].cz};
   const a=anchors.find(an=>an.key===key);
   if(!a) return null;
@@ -10824,6 +11300,23 @@ function currentZoneIdx(){
     if(Math.abs(p.x-z.cx)<z.hx+6 && Math.abs(p.z-z.cz)<z.hz+7) return i;
   }
   return S.zone;
+}
+/* MINIMAP LOCKS, ADDRESSED BY ZONE NAME.
+   data-dot IS the ZONES index -- 0 farm, 1 meadow, 2 build -- and the dot
+   itself is positioned from the same coordinate space. That made the literal
+   look harmless, and it was wrong for as long as it existed: BOTH call sites
+   un-greyed data-dot="2", the CONSTRUCTION SITE, when the meadow was unlocked.
+   So buying the meadow lit up the one region with no gameplay in it, while the
+   meadow's own icon was never greyed at all and therefore never lit up either.
+   Nothing could see that, because a literal index is not checkable.
+   The build site stays locked: it is dressed art and a "SOON" sign, and it
+   should light up when it has something to do, not before. */
+function mmIcon(zoneName){
+  const i=ZONES.findIndex(z=>z.name===zoneName);
+  return i<0 ? null : document.querySelector('[data-dot="'+i+'"]');
+}
+function unlockMinimap(zoneName){
+  const el=mmIcon(zoneName); if(el) el.classList.remove('lock');
 }
 function updateHUDWorld(){
   const z=currentZoneIdx();
@@ -11143,10 +11636,24 @@ function collectWool(i,silent){
 
 /* ---------- shop ---------- */
 const FARM_SHOP=[
+  /* SOLD UP TO soldPlots, NOT maxPlots. The last three beds are the west
+     field's, and they are cleared rather than bought — see FARM.soldPlots for
+     why extending this curve to nine would have re-priced the whole game. */
   {key:'plot',name:'New Plot',icon:'🟫',
    sub:()=>`${S.unlockedPlots}/${FARM.maxPlots} plots`,
-   maxed:()=>S.unlockedPlots>=FARM.maxPlots,cost:()=>upgCost('plot'),
+   maxed:()=>S.unlockedPlots>=FARM.soldPlots,cost:()=>upgCost('plot'),
    buy:()=>{S.upgLevels.plot++;S.unlockedPlots++;sync3DFarm();}},
+  /* THE WEST FIELD. Appears only once the original six beds are all owned:
+     Township's rule, from DECISIONS — the LEVEL of the farm is the wall, and
+     the coin price deliberately is not. Offering it earlier would put a second
+     "buy land" button beside the first and make the farm's own progression
+     ambiguous. */
+  {key:'expand',name:'West Field',icon:'🪓',
+   sub:()=>'Push the fence out',
+   maxed:()=>S.farmExpanded,
+   hidden:()=>S.farmExpanded||S.unlockedPlots<FARM.soldPlots,
+   cost:()=>FARM.expandCost,
+   buy:()=>{openWestField();}},
   {key:'speed',name:'Faster Growth',icon:'⏱️',
    sub:()=>`Lv ${S.upgLevels.speed}`,
    maxed:()=>S.upgLevels.speed>=FARM.costs.speed.max,cost:()=>upgCost('speed'),
@@ -11163,12 +11670,29 @@ const FARM_SHOP=[
      already bought a bot keeps it: workerLevel() counts the old level. */
 ];
 const MEADOW_SHOP=[
+  /* THE LEVEL IS THE WALL, NOT THE PRICE — and until 2026-08-08 nothing here
+     enforced that.
+
+     DECISIONS 2026-08-06 chose Township's model over Hay Day's: "levelling
+     grants the right to expand, paid for in coins… the coin cost is
+     deliberately not the wall, the level is." The meadow was the one expansion
+     in the game and it had NO level gate at all — only a 6,000-coin price. A
+     player who saved instead of spending could open the sheep business in the
+     middle of the crop farm, skipping the level they were in and meeting the
+     flock before they had finished learning to harvest.
+
+     That is also the open item CONTINUE-HERE recorded as "the level-up gives
+     coins and nothing else": the coins were the entire reward for finishing a
+     level, because the thing the level-up was supposed to GRANT was already on
+     sale to anyone with the money. Now finishing the crop farm is what unlocks
+     the meadow, and the price is what it costs once you are allowed. */
   {key:'open',name:'Unlock Meadow',icon:'🔓',
-   sub:()=>'Sheep & wool business!',
+   sub:()=>S.farmLevel>=2?'Sheep & wool business!':'Finish the crop farm first',
    maxed:()=>S.meadowOpen,cost:()=>MEADOW.unlockCost,
+   locked:()=>S.farmLevel<2,
    hidden:()=>S.meadowOpen,
    buy:()=>{S.meadowOpen=true;fireworks();flash();farmerCheer();
-     document.querySelector('[data-dot="2"]').classList.remove('lock');}},
+     unlockMinimap('meadow');}},
   {key:'sheep',name:'Buy Sheep',icon:'🐑',
    sub:()=>`${S.sheep.length}/${MEADOW.costs.sheep.max} sheep`,
    maxed:()=>S.sheep.length>=MEADOW.costs.sheep.max,cost:()=>meadowCost('sheep'),
@@ -11433,7 +11957,7 @@ function initTaskPan(){
     const chip=e.target.closest('.task');
     if(!chip||chip.classList.contains('done')) return;
     const t=panTargetFor(chip.dataset.taskId);
-    // Absent from TASK_PAN (the three ad tasks) => nothing happens at all. No
+    // PAN_NONE (the three ad tasks) => nothing happens at all. No
     // pan, no error, and deliberately no feedback animation either: a shake or
     // a flash would be a third owner of the chip's transform (rule 7), and
     // "this chip does nothing" is better said by silence than by a wobble.
@@ -11574,8 +12098,8 @@ function shake(el){
    Every voice is SYNTHESISED at runtime from oscillators plus one noise
    buffer filled by a JS loop. There is no audio file, no CDN, no data:audio
    URI, no <audio> element, no decodeAudioData and no AudioWorklet.addModule
-   (that last one is a URL fetch — it breaks rule 3 AND 404s under file://).
-   That is CLAUDE.md rule 3, "no external assets, ever", applied to sound.
+   (that last one is a URL fetch — it fetches AND 404s under file://).
+   Sound ships nothing and fetches nothing: every voice is synthesised here.
 
    This REPLACES chirp(), which had four defects and they are why the game
    sounded cheap:
@@ -12028,61 +12552,35 @@ function doReset(){
   location.reload();
 }
 /* ===================================================================
-   [DEV-CHEAT] TESTING SHORTCUT — REMOVE BEFORE ANY STORE SUBMISSION.
+   THE DEV COIN SHORTCUT IS GONE  (removed 2026-08-08)
    ===================================================================
-   Tap the version badge in the bottom-right corner five times quickly and it
-   grants a million coins. Asked for by the owner so late-game content can be
-   reached without playing twenty minutes to get there.
+   Tapping the version badge five times used to grant a million coins. It was
+   asked for so late-game content could be reached without playing twenty
+   minutes to get there, and it was accepted "while nothing is bought with real
+   money and the link is a preview".
 
-   WHY IT IS IN THE GAME AT ALL, when a bookmarklet did the same job: the
-   bookmarklet worked, and setting it up on a phone means editing a bookmark's
-   address by hand, which is fiddly enough to be a tax on every test.
+   IT WAS PUBLISHED. It reached the live GitHub Pages build, where anyone who
+   tapped the corner five times could wreck their own economy. Three build
+   checks guarded it -- but every one of them asserted the cheat was PRESENT and
+   correctly wired. Nothing asserted it was absent from a release, and the
+   deploy script published without asking. The net caught "someone half-removed
+   it"; it could not catch "someone shipped it", which is the thing that
+   actually happened.
 
-   THE FIRST ATTEMPT AT THIS WAS A BOOKMARKLET THAT EDITED localStorage
-   DIRECTLY, AND IT SILENTLY DID NOTHING. The game saves on unload, so
-   reloading wrote the old balance straight back over the edit. Anything that
-   changes the save has to go through save() while the game is running, which
-   is what this does -- and it is why there is no reload here.
+   SO IT IS NOT MANAGED, IT IS DELETED, and the three checks were replaced by
+   checks that fail if it ever comes back. That is the whole fix: there is no
+   flag to forget, no build variant to get wrong, and no divergence between the
+   file that is tested and the file that is published.
 
-   TO REMOVE IT: delete this block, and set #verTag back to
-   pointer-events:none. Search the file for DEV-CHEAT; a build check asserts
-   that this marker and that CSS agree, so neither can be half-removed.
+   IF YOU NEED LATE-GAME STATE, seed it the way every instrument here already
+   does (R15) -- write the save directly and reload, rather than playing to it:
 
-   It ships publicly on the preview link, so anyone who taps the corner five
-   times gets coins. That is acceptable while nothing is bought with real
-   money and the link is a preview; it is NOT acceptable in a store build. */
-function initDevCheat(){
-  const badge=$('#verTag');
-  if(!badge) return;
-  let taps=0, last=0;
-  badge.addEventListener('pointerdown',function(e){
-    // Must not reach #sceneWrap, whose pointerdown starts a joystick drag --
-    // the same reason every world button stops propagation.
-    e.stopPropagation();
-    const now=performance.now();
-    /* A gap longer than this starts the count again, so stray taps in the
-       corner can never accumulate into a grant across a whole session.
+     localStorage.setItem('sunny_save_3d', JSON.stringify({...}))
 
-       2500ms, not the 1500 this started at. The target is 18x16 CSS pixels in
-       the very corner of the screen -- the smallest thing in the game -- so a
-       real finger misses it, adjusts and tries again, and a tight window turns
-       that into "the cheat doesn't work". Five deliberate taps on a corner
-       badge is not something anyone does by accident at any window length,
-       so the looser one costs nothing. */
-    taps = (now - last > 2500) ? 1 : taps + 1;
-    last = now;
-    if(taps < 5) return;
-    taps = 0;
-    S.coins += 1000000;
-    save();                      // through the game's own save, never storage
-    renderAll();
-    bump($('#coinPill'));
-    sfx('coinPour'); haptic('light');
-    farmerSay('Dev: +1,000,000 🪙');
-  });
-}
+   tools/verify-westfield.js and tools/screenshot.js both do exactly this, and
+   they are the worked examples. Do NOT re-add an in-game grant: a shortcut that
+   ships is a shortcut you forget. */
 function initSettings(){
-  initDevCheat();
   const gear=$('#gearBtn');
   if(gear) gear.addEventListener('pointerdown',e=>{
     e.stopPropagation();          // must not reach #sceneWrap's joystick
@@ -12473,7 +12971,7 @@ function startWorld(){
   renderAll();
   if(hasSave){ offlineWelcome(); farmerSay('Welcome back! 👋',2000); }
   else { save(); farmerSay('Let’s grow! 🌱',2400); }
-  if(S.meadowOpen) document.querySelector('[data-dot="2"]').classList.remove('lock');
+  if(S.meadowOpen) unlockMinimap('meadow');
   requestAnimationFrame(tick);
 }
 </script>
