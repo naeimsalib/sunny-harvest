@@ -3722,7 +3722,7 @@
      URL can never point at anything but the bytes it was named for. Machine-written. -->
 <!-- FORGE-EXTERNAL:START -->
 <!-- 7 external model(s). The BYTES are not here: each is published as assets/<name>.<contenthash>.glb, an immutable URL that is never reused for different content. Machine-written by tools/bake-assets.js — do not edit by hand. -->
-<script id="factoryAssets" type="application/json">{"hero-farmer":{"url":"assets/hero-farmer.f78e5e00c865.glb","sha256":"f78e5e00c865438fe92e2fb209b1d871a181c2e849f98d7f283cdf6ce76bd3ed","bytes":861124},"sheep":{"url":"assets/sheep.54321dcd99b3.glb","sha256":"54321dcd99b353a661eb55b1f0c748dbb3ca512ae127c1a7f831305ca246d0d2","bytes":179036},"barn":{"url":"assets/barn.7db6a44fd16b.glb","sha256":"7db6a44fd16ba6b8182876c26395f37e1377fe28535973e80aa7f5de60cfa4e8","bytes":89836},"silo":{"url":"assets/silo.7b73f01fc1ae.glb","sha256":"7b73f01fc1aeb44c1992cbe2e501c8e7737a0f845d3bb574daa941920a81db13","bytes":67716},"well":{"url":"assets/well.a1373aece9cb.glb","sha256":"a1373aece9cb82d098d6ccc53ed300972c62722ed548b9fd4b727b92110dd8f2","bytes":130404},"stall":{"url":"assets/stall.9884848e8897.glb","sha256":"9884848e8897355160661823c6a87d551a58d2e8380ac7de4c029a9e957f9064","bytes":90872},"villager":{"url":"assets/villager.c203a578cd6d.glb","sha256":"c203a578cd6d66cf76c074e94920f3b87bdba8573ef22e1855adf1853db888dd","bytes":437160}}</script>
+<script id="factoryAssets" type="application/json">{"hero-farmer":{"url":"assets/hero-farmer.f78e5e00c865.glb","sha256":"f78e5e00c865438fe92e2fb209b1d871a181c2e849f98d7f283cdf6ce76bd3ed","bytes":861124},"sheep":{"url":"assets/sheep.54321dcd99b3.glb","sha256":"54321dcd99b353a661eb55b1f0c748dbb3ca512ae127c1a7f831305ca246d0d2","bytes":179036},"barn":{"url":"assets/barn.7db6a44fd16b.glb","sha256":"7db6a44fd16ba6b8182876c26395f37e1377fe28535973e80aa7f5de60cfa4e8","bytes":89836},"silo":{"url":"assets/silo.7b73f01fc1ae.glb","sha256":"7b73f01fc1aeb44c1992cbe2e501c8e7737a0f845d3bb574daa941920a81db13","bytes":67716},"well":{"url":"assets/well.a1373aece9cb.glb","sha256":"a1373aece9cb82d098d6ccc53ed300972c62722ed548b9fd4b727b92110dd8f2","bytes":130404},"stall":{"url":"assets/stall.b5ecd578c430.glb","sha256":"b5ecd578c4309100ddf87df874eaa6eaf08bbe2e9123aa3e4a4e633c5e86b690","bytes":90868},"villager":{"url":"assets/villager.c203a578cd6d.glb","sha256":"c203a578cd6d66cf76c074e94920f3b87bdba8573ef22e1855adf1853db888dd","bytes":437160}}</script>
 <!-- FORGE-EXTERNAL:END -->
 
 <!-- GROUND TILES. Deliberately OUTSIDE the FORGE-EXTERNAL markers: everything between
@@ -3901,7 +3901,7 @@ html,body{margin:0;height:100%;overflow:hidden;touch-action:none;
 @keyframes railHint{0%,100%{box-shadow:0 0 0 3px var(--sun), 0 4px 0 #d79a72, inset 0 2px 0 #fff;}
   50%{box-shadow:0 0 0 6px rgba(255,212,77,0.45), 0 4px 0 #d79a72, inset 0 2px 0 #fff;}}
 /* =====================================================================
-   THE FARMHOUSE DOCK  (2026-08-08)
+   THE ZONE DOCK  (2026-08-08 as the farmhouse dock; generalised 2026-08-09)
    =====================================================================
    REPLACES A BLOCKING SHEET. Tapping the barn used to raise a full-width card
    over a scrim: the game stopped, the world went behind a dim layer, and the
@@ -3915,6 +3915,19 @@ html,body{margin:0;height:100%;overflow:hidden;touch-action:none;
    time. The trigger is a place, not a tap, which is the same rule the rest of
    this game already follows — you cannot pick a crop, shear a sheep, pull a
    stump or sell a basket from across the map either.
+
+   THE PLACE IS NOW THE REGION, NOT A DOORSTEP (owner ruling 2026-08-09). It
+   used to be a 4.2-unit ring outside the barn: "the farmhouse owns the farm's
+   upgrades". The owner ruled that ownership away — "Farm upgrades should NOT
+   belong to the farmhouse anymore ... when the FARMER is physically inside the
+   FARM AREA, farm upgrade controls appear from the bottom" — and asked for the
+   same pattern in the meadow.
+
+   ONE DOCK, TWO CONTEXTS, and deliberately not two docks. The ruling says "do
+   not create an unrelated second UI architecture", and the shape is identical
+   anyway: which region am I in, which upgrades belong to it, are any of them
+   still buyable. So the strip, its CSS, its cards and its purchase path are
+   one thing, and the only per-region data is a row in ZONE_DOCKS.
 
    ABOVE THE MINIMAP AND THE VERSION BADGE, both of which live in the bottom
    corners; the dock is centred between them and never covers either.
@@ -3938,18 +3951,18 @@ html,body{margin:0;height:100%;overflow:hidden;touch-action:none;
    CLEARANCE: 74px was also unscaled while the minimap it clears IS scaled, so
    the gap was 0 on a phone and -29px on a tablet. Both terms are scaled now
    except the env() inset, which must not be. */
-#farmDock{position:absolute;left:0;right:0;z-index:22;
+#zoneDock{position:absolute;left:0;right:0;z-index:22;
   bottom:calc(env(safe-area-inset-bottom) + 82px * var(--ui));
   display:flex;gap:8px;justify-content:center;align-items:flex-end;
   padding:0 10px;pointer-events:none;
   transform:translateY(150%) scale(var(--ui));
   transform-origin:bottom center;opacity:0;
   transition:transform .30s cubic-bezier(.2,.9,.3,1), opacity .18s linear;}
-#farmDock.show{transform:translateY(0) scale(var(--ui));opacity:1;}
+#zoneDock.show{transform:translateY(0) scale(var(--ui));opacity:1;}
 .dockCard{flex:0 1 152px;display:flex;flex-direction:column;gap:5px;
   background:rgba(255,255,255,0.96);border-radius:16px;padding:8px 9px 9px;
   box-shadow:0 5px 0 rgba(0,0,0,0.16), inset 0 1px 0 #fff;
-  /* POINTER-EVENTS ON THE CARDS, NOT ON THE STRIP. #farmDock spans the whole
+  /* POINTER-EVENTS ON THE CARDS, NOT ON THE STRIP. #zoneDock spans the whole
      viewport width and is a sibling of #sceneWrap, so `pointer-events:auto` on
      it swallowed every touch in an 87px full-width band — measured, the
      joystick would not start anywhere in the lower middle of the screen while
@@ -4516,7 +4529,7 @@ html,body{margin:0;height:100%;overflow:hidden;touch-action:none;
    dead weight is bad enough, but the comment above them still described the
    element as live, in a file where the comments are the architecture record.
    Settings keeps the sheet idiom, because a settings page genuinely IS a
-   mode. The dock that replaced the farmhouse is #farmDock. */
+   mode. The dock that replaced the farmhouse is #zoneDock. */
 #setPanel{position:fixed;left:0;right:0;bottom:0;z-index:121;background:var(--card);
   border-radius:calc(22px * var(--ui)) calc(22px * var(--ui)) 0 0;
   padding:calc(14px * var(--ui)) calc(20px * var(--ui));
@@ -4634,11 +4647,12 @@ html,body{margin:0;height:100%;overflow:hidden;touch-action:none;
   <!-- What the farmer is carrying. Written by renderInventory(); empty until
        there is something in it. -->
   <div id="invBar"></div>
-  <!-- THE FARMHOUSE CONTROLS. Not a sheet: a row of compact cards that slides
-       up from the bottom while the farmer is standing in the ring outside the
-       barn, and slides away when he walks off. Written by renderFarmDock(). -->
-  <div id="farmDock"></div>
-  <div id="verTag">v10.0</div>
+  <!-- THE ZONE CONTROLS. Not a sheet: a row of compact cards that slides up
+       from the bottom while the farmer is standing INSIDE a region that has
+       upgrades — his farm, or his meadow — and slides away when he walks out.
+       Written by renderZoneDock(). -->
+  <div id="zoneDock"></div>
+  <div id="verTag">v11.0</div>
   <div id="noWebGL">
     <div class="emoji">🌾</div>
     <h1>This browser can't show the farm</h1>
@@ -4693,7 +4707,7 @@ html,body{margin:0;height:100%;overflow:hidden;touch-action:none;
 <div id="setScrim"></div>
 <!-- THE FARMHOUSE SHEET IS GONE (2026-08-08). It was a full-width card over a
      scrim that stopped the game to sell two upgrades; the owner disliked it and
-     it is replaced by #farmDock, a strip of cards that appears because the
+     it is replaced by #zoneDock, a strip of cards that appears because the
      farmer is standing outside the barn. Settings keeps the sheet idiom,
      because a settings page genuinely IS a mode. -->
 
@@ -5206,15 +5220,29 @@ const TASK_PAN={
   t2:'market',       // sell to a buyer  -> the stands below the farm
   t3:'plot',         // own 3 plots      -> the next locked bed's button
   t4:'coins',        // DYNAMIC: the best coin source right now -- see coinTargetNow()
-  t5:'farm.house',   // seeds are sold on the barn's doorstep
+  t5:'farm.zone',    // seeds are bought standing in the farm
   t6:'market',       // fill 5 orders
   t7:'farm.beds',    // harvest 15
   t8:'coins',        // DYNAMIC
   t9:'plot',         // fill the farm
-  t10:'farm.house',
-  t11:'coins',       // DYNAMIC
+  t10:'farm.zone',
+  /* t11 AND t13 WERE SWAPPED, found by resolving every task's pointer and
+     reading the answers beside the task titles (2026-08-09).
+
+     t11 is "Better Seeds — Sunflowers", a farm upgrade bought standing in the
+     farm, and it was pointing at `coins` — the dynamic best-coin-source finder,
+     which sends the player to a market stall or a ripe bed. t13 is "Collect
+     1,800 coins" and it was pointing at the farm, which is the one place coins
+     no longer come from.
+
+     Neither is a typo: the chain grew from 26 tasks to 29 in the core-loop
+     pass, every id after the insertion point shifted by one, and this table was
+     not re-read against the new titles. The build check that guards this asks
+     only whether each key RESOLVES, which both did — a pointer can be perfectly
+     valid and aimed at the wrong thing. */
+  t11:'farm.zone',   // Better Seeds — bought standing in the farm
   t12:'wood',        // chop 6 wood      -> the nearest tree still standing
-  t13:'farm.house',
+  t13:'coins',       // DYNAMIC
   t14:'farm.beds',   // harvest 30
   t15:'farm.beds',   // harvest 60
   t16:'coins',       // DYNAMIC
@@ -5224,15 +5252,15 @@ const TASK_PAN={
                      //             of the three stumps: exactly right.
   /* ---- Level 2: the meadow and the flock ---- */
   t19:'meadow.open', // the gate, not the flock
-  t20:'meadow.sheep',
-  t21:'meadow.sheep',// earn a farmhand -- earned by shearing now
-  t22:'meadow.sheep',
-  t23:'meadow.sheep',
-  t24:'meadow.shear',// the meadow's own upgrade button
-  t25:'meadow.sheep',
-  t26:'meadow.wool',
+  t20:'meadow.zone',
+  t21:'meadow.zone', // earn a farmhand -- earned by shearing now
+  t22:'meadow.zone',
+  t23:'meadow.zone',
+  t24:'meadow.zone', // the meadow's own upgrades, in the dock
+  t25:'meadow.zone',
+  t26:'meadow.zone',
   t27:'coins',       // DYNAMIC
-  t28:'meadow.sheep',
+  t28:'meadow.zone',
   t29:'farm.beds'    // harvest 90
 };
 // A level is one authored SET of tasks (decision D1). Level 1's set is the
@@ -5528,6 +5556,22 @@ const ZONES=[
   {name:'build',  cx: 48, cz:14, hx:13, hz:11}
 ];
 
+/* WHERE YOU WALK INTO THE FARM (owner ruling 2026-08-09).
+
+   "Move/recompose the entrance so it is on the RIGHT SIDE of the farm fence."
+   Right, at a camera that never rotates, is +x — and +x is also where the road
+   from the crossroads already arrives and where the "🌾 FARM" signpost already
+   stands. See ringFence() for the full note; the short version is that the road
+   has been running into a solid fence and the gate has been sitting where no
+   road goes.
+
+   `at` is ZONES[0].cz, the middle of the east run, which is exactly the point
+   PATHS[0] aims at (`x2:ZONES[0].cx+11, z2:ZONES[0].cz`). Written against
+   ZONES[0] rather than farmFenceZone() ON PURPOSE: the west field moves the
+   fence south, and the gate must stay level with the road rather than travel
+   with the expansion. */
+const FARM_GATE = {side:'+x', at:ZONES[0].cz, half:4};
+
 /* THE WEST FIELD'S GEOMETRY, DERIVED — NOT A SECOND SET OF COORDINATES.
 
    ZONES[0] stays exactly as it is, and that is deliberate: plotWorldPos() reads
@@ -5725,6 +5769,48 @@ const PLOT_R = BED_HALF_W * SOIL_SPREAD;
    so the probe and the checks can refer to the same switch. */
 const FARM_AUTOPICK = true;
 
+/* WHERE DECORATION MAY NOT GROW.
+
+   The scatter used to ask `ZONES.some(...)`, which covered the farm, the meadow
+   and the build site — and nothing else, because for a long time there was
+   nothing else. The market yard is a fourth authored region, and the first
+   build of it came up with a full-sized apple tree planted on top of the stall,
+   canopy over the whole composition. The stall's own collision disc did not
+   stop it: a disc reserves a trunk, not a canopy, which is the same reason the
+   woodlot nodes needed a six-unit clearing of their own.
+
+   So the list of protected regions is stated ONCE, here, and both scatter
+   passes read it. A fifth region gets its protection by being added to an
+   array rather than by somebody remembering two call sites.
+
+   +1.5 is the original margin and is kept: it is what stops a bush growing
+   flush against a fence line from the outside. */
+function scatterKeepOut(){ return ZONES.concat([MARKET_YARD]); }
+function inRegionCore(x,z){
+  return scatterKeepOut().some(zz =>
+    Math.abs(x-zz.cx)<zz.hx+1.5 && Math.abs(z-zz.cz)<zz.hz+1.5);
+}
+
+/* The height of the signpost model's board opening, in its own coordinates.
+   Read by buildWorld()'s placeSign() and by the market yard's own sign. */
+const SIGN_BOARD_Y=4.4;
+
+/* =====================================================================
+   WHERE THE MARKET STANDS  (owner ruling 2026-08-09)
+   =====================================================================
+   Up here with ZONES rather than down with buildMarket(), because PATHS is
+   evaluated at parse time and the market's own road ends on this gate. See the
+   full note beside buildMarket() for why the yard is where it is.
+   =====================================================================*/
+const MARKET={x:-4, z:33.5};                     // the primary stand
+/* THE YARD. Its own zone rectangle, ringed by the same fence every other region
+   uses — one fence idiom, one gate concept, one instanced field. */
+const MARKET_YARD={cx:-4, cz:36.5, hx:8.5, hz:6};
+/* The gate is on the NORTH run, offset east of the stall so the player walks
+   INTO the yard rather than into the back of the counter, and lines up with the
+   road coming down from the crossroads. */
+const MARKET_GATE={side:'-z', at:1.2, half:3};
+
 /* THE PATHS, AS DATA. (M5)
 
    These three curves used to exist ONLY as brush strokes inside
@@ -5748,7 +5834,19 @@ const PATH_HALF=1.90;
 const PATHS=[
   {x1:SPAWN.x, z1:SPAWN.z, cx:-20, cz: 28, x2:ZONES[0].cx+11, z2:ZONES[0].cz},
   {x1:SPAWN.x, z1:SPAWN.z, cx:  2, cz: -6, x2:ZONES[1].cx,    z2:ZONES[1].cz+11},
-  {x1:SPAWN.x, z1:SPAWN.z, cx: 26, cz: 22, x2:ZONES[2].cx-10, z2:ZONES[2].cz}
+  {x1:SPAWN.x, z1:SPAWN.z, cx: 26, cz: 22, x2:ZONES[2].cx-10, z2:ZONES[2].cz},
+  /* THE MARKET ROAD (2026-08-09). The fourth destination in the game had no
+     road at all: the market sat in the grass beside the farm lane, which is
+     half of why the owner reported it "blocks the walking track" — it was ON
+     the farm's track because it had none of its own.
+
+     A market is a ROADSIDE thing, and the ruling asks for exactly that. This
+     runs south from the same crossroads the other three leave from, and ends
+     ON the yard's gate rather than near it, so the road, the opening and the
+     sign are one line. Written against MARKET_GATE and MARKET_YARD so moving
+     the yard moves the road with it. */
+  {x1:SPAWN.x, z1:SPAWN.z, cx:  1, cz: 21,
+   x2:MARKET_GATE.at, z2:MARKET_YARD.cz-MARKET_YARD.hz-1}
 ];
 /* Sampled once into polylines, because the exact distance from a point to a
    quadratic Bezier is a root of a cubic, and the scatter asks this question a
@@ -7554,7 +7652,7 @@ function forge(name){
 
    Returns a Group, always -- never a bare mesh -- so that a model carrying
    several materials behaves the same as one carrying a single material. */
-function forgeInstanced(name, placements){
+function forgeInstanced(name, placements, tint){
   const tpl=FORGED[name];
   if(!tpl || !placements.length || !THREE.InstancedMesh) return null;
   tpl.updateMatrixWorld(true);
@@ -7603,9 +7701,21 @@ function forgeInstanced(name, placements){
        isolation, which is a very confusing thing to debug. */
     const geo=src.geometry.clone();
     geo.applyMatrix4(src.matrixWorld);
-    // The material is SHARED, not cloned, exactly as forge() shares it. It has
-    // already been through forgeAdopt(), so it is the game's own Lambert.
-    const inst=new THREE.InstancedMesh(geo, src.material, placements.length);
+    /* The material is SHARED, not cloned, exactly as forge() shares it. It has
+       already been through forgeAdopt(), so it is the game's own Lambert.
+
+       UNLESS A TINT IS ASKED FOR, in which case it is cloned and multiplied
+       once, here, at build time. That matters: two fields of the same model
+       sharing one material object cannot differ, so darkening one would darken
+       both — and "one field, two colours" is exactly the sort of shared-reference
+       bug this file has paid for before. The clone is per FIELD, not per
+       instance, so a tinted field still costs one draw call per material. */
+    let mat=src.material;
+    if(tint && tint!==1 && mat && mat.color){
+      mat=mat.clone();
+      mat.color.multiplyScalar(tint);
+    }
+    const inst=new THREE.InstancedMesh(geo, mat, placements.length);
     for(let i=0;i<mats.length;i++) inst.setMatrixAt(i,mats[i]);
     inst.instanceMatrix.needsUpdate=true;
     // Every object needs its shadow -- the reference's objects sit ON the
@@ -8033,8 +8143,21 @@ function makeGroundTexture(){
      building exists. */
   wear(ZONES[0].cx-4,  ZONES[0].cz-19, 150);   // barn
   wear(ZONES[0].cx+9,  ZONES[0].cz-19,  96);   // silo
-  wear(-8.5, 4.0, 104);                        // market stall
+  /* THE MARKET'S PATCH WAS ORPHANED, and this comment's own warning is what
+     found it: "if a building moves in buildWorld(), its patch has to move with
+     it -- there is no way to derive one from the other here". The stall left
+     the crossroads on 2026-08-08 and the worn earth stayed at (-8.5, 4.0),
+     so for a whole release there was a bare trodden patch in the middle of an
+     empty crossroads and a market standing on untouched grass.
+
+     DERIVED NOW, not typed. MARKET and MARKET_YARD are initialised above this
+     function, so the patch can simply read them and the class of bug closes. */
+  wear(MARKET.x, MARKET.z+2.4, 132);           // the market yard's pitch
   wear( 7.5, 5.5,  92);                        // well
+  /* THE FARM'S GATEWAY. Ground gets worn where everybody walks, and after the
+     entrance moved to the east run this is the single most-walked square of
+     the whole map — every trip to the market and back goes through it. */
+  wear(ZONES[0].cx+ZONES[0].hx, FARM_GATE.at, 88);
 
   /* THE CROP BEDS' SOIL IS PAINTED HERE, NOT MODELLED.
 
@@ -9362,6 +9485,34 @@ const WORKER_MODEL='villager';
 // two models are close but not identical, and a worker who is visibly a
 // different size from the player reads as a different species.
 const WORKER_SCALE=1.73;
+/* EVERY VILLAGER IS THE SAME MODEL, AND THAT SHOWED. An independent review of
+   the screenshots called the cloning "the single clearest asset-pack tell":
+   three identical men in one frame, two of them in the identical idle pose.
+
+   COLOUR CANNOT BE THE ANSWER HERE, and it is worth writing down so the next
+   session does not try. The villager is ONE mesh with ONE material whose
+   colour is plain white — the clothes live in its texture — so there is no
+   shirt colour to vary. Tinting the material tints the skin and the eyes with
+   it. A second body variant is real asset work and a real decision.
+
+   WHAT IS FREE IS SIZE AND TIMING. People differ in height, and two people
+   idling never breathe in step. A few per-cent of scale and a second or two of
+   animation offset break the read at no cost and with no new art — the pose
+   match is what the eye actually catches, more than the outfit.
+
+   Keyed off the index rather than Math.random so a given villager is the same
+   villager on every run, which the screenshot harnesses depend on. */
+function varyVillager(sk, n){
+  if(!sk || !sk.root) return;
+  const k=(n|0);
+  // ±5%: enough that two side by side are visibly different people, small
+  // enough that nothing reads as a child or a giant.
+  const h=1+(((k*37)%11)-5)*0.01;
+  sk.root.scale.multiplyScalar(h);
+  // And out of step. The mixer drives every action from one clock, so moving
+  // the clock moves whichever clip is playing.
+  if(sk.mixer) sk.mixer.setTime(((k*0.73)%2.4));
+}
 // Slower than the player's 9.5. A helper who moves like the person you control
 // competes with them for the eye; a bit slower reads as "working away in the
 // background", which is what they are.
@@ -9519,6 +9670,114 @@ function makeChopClip(sk){
   return true;
 }
 
+/* =====================================================================
+   THE QUICK COLLECT — a reach and a pluck, and it is ADDITIVE
+   =====================================================================
+   THE KNEEL IS GONE. The owner played v10.0 and ruled: "Remove the kneeling
+   interaction ... but do not return to magical remote harvesting." What was
+   wrong with it was never the pose — it was that collecting cost the player
+   1.1 seconds of a joystick that did not answer, on the single most repeated
+   action in the game. Six beds is roughly six and a half seconds of dead input
+   per lap, and dead input reads as lag, not as animation.
+
+   WHY THIS CLIP IS ADDITIVE AND THE OTHER THREE ARE NOT. The clip selector in
+   updateCharacter() plays exactly ONE base action and cross-fades between them,
+   and it kills an action clip the moment measured speed passes 0.06. So a
+   NORMAL-blend gesture has only two possible endings, and both are bad: hold
+   the feet still and the player is locked out again, or let them walk and the
+   gesture is cancelled before it draws a frame. The requirement — a physical
+   collection the player can walk out of, or walk THROUGH — cannot be met by a
+   clip that owns the whole body.
+
+   An additive clip is a DELTA laid over whatever the body is already doing. It
+   composes with idle, with walk and with run, so the same half-second reach
+   plays whether he stops to pick or picks on the way past. That is what makes
+   walk-over auto-picking finally look like something instead of a crop
+   evaporating under his boots.
+
+   THREE BONES, NOT SIXTEEN, and that is why it composes cleanly: the legs are
+   left entirely to the locomotion clip underneath. Built from local-axis
+   deltas rather than absolute angles for the same reason makeChopClip() is —
+   a different rig gives a different-looking reach, never a broken one — with
+   one difference that matters: an additive track holds the delta ALONE, with
+   no rest quaternion premultiplied in, because "additive" is precisely the
+   statement that this rotation is applied on top of the pose already there.
+
+   The first and last keys are identity, so the gesture blends in and out
+   against the base pose with nothing to clean up afterwards. */
+const PLUCK_CLIP='pluck';
+function makePluckClip(sk){
+  if(!sk || !sk.root || !sk.mixer || sk.actions[PLUCK_CLIP]) return false;
+  const bones={};
+  sk.root.traverse(o=>{ if(o.isBone && o.name) bones[o.name]=o; });
+  // A rig without these gets no gesture and keeps its reward — the same honest
+  // degradation the chop takes.
+  const need=['RightArm','RightForeArm','Spine'];
+  if(!need.every(n=>bones[n])) return false;
+
+  const DUR=PLUCK_SECS;
+  /* Down, close, up — as fractions of its own length:
+       0.00  neutral
+       0.34  hand down at the plant, elbow folded, bent at the waist
+       0.52  the grab, held a beat so the hand is AT the crop when it is paid
+       1.00  back to neutral, standing straight
+
+     THE SPINE DOES THE READING, NOT THE ARM, and that is a camera fact rather
+     than an animation preference. This game is seen from 38 degrees above and
+     the farmer stands 8-11% of the screen tall, so an arm swinging down in
+     front of him happens almost entirely BEHIND his own torso from the lens. A
+     first pass used spine 0.30 and the gesture was measurably running and
+     visually nearly invisible. Bending at the waist changes the SILHOUETTE,
+     which is the only thing that survives that camera at that size — the same
+     lesson `ART-DIRECTION.md` §5 records about detail hidden under a canopy. */
+  const PHASES=[
+    {at:0.00, arm: 0.00, fore: 0.00, spine: 0.00},
+    {at:0.34, arm: 1.35, fore:-0.70, spine: 0.52},
+    {at:0.52, arm: 1.22, fore:-0.80, spine: 0.48},
+    {at:1.00, arm: 0.00, fore: 0.00, spine: 0.00}
+  ];
+  const times=[], keys={};
+  for(const n of need) keys[n]=[];
+  const d=new THREE.Quaternion();
+  const AXIS=new THREE.Vector3(1,0,0);
+  for(const p of PHASES){
+    times.push(p.at*DUR);
+    d.setFromAxisAngle(AXIS, p.arm);   keys.RightArm.push(d.x,d.y,d.z,d.w);
+    d.setFromAxisAngle(AXIS, p.fore);  keys.RightForeArm.push(d.x,d.y,d.z,d.w);
+    d.setFromAxisAngle(AXIS, p.spine); keys.Spine.push(d.x,d.y,d.z,d.w);
+  }
+  const tracks=need.map(n=>new THREE.QuaternionKeyframeTrack(
+    bones[n].name+'.quaternion', times, keys[n]));
+  const clip=new THREE.AnimationClip(PLUCK_CLIP, DUR, tracks, THREE.AdditiveAnimationBlendMode);
+  const act=sk.mixer.clipAction(clip);
+  act.loop=THREE.LoopOnce;
+  act.clampWhenFinished=false;
+  sk.actions[PLUCK_CLIP]=act;
+  if(sk.clips) sk.clips[PLUCK_CLIP]=clip;
+  return true;
+}
+
+/* Fire it. DELIBERATELY NOT playAction(): that sets R.actionClip, which is what
+   tells the clip selector to take over the whole body — the exact thing this
+   gesture exists to avoid. The additive action is not in the selector's world
+   at all; it is simply playing, and mixer.update() drives both. */
+function playPluck(){
+  const R=FarmerRig; const sk=R&&R.skeletal;
+  if(!sk || !sk.actions[PLUCK_CLIP]) return false;
+  const a=sk.actions[PLUCK_CLIP];
+  a.stop(); a.reset(); a.setEffectiveWeight(1); a.play();
+  return true;
+}
+
+/* The facing half of playAction(), on its own. A quick collect must still turn
+   him toward what he is collecting — picking a carrot over his own shoulder is
+   the defect the facing was added to fix — but must NOT claim the body. */
+function faceAt(tx,tz){
+  const R=FarmerRig; if(!R||!R.root) return;
+  const dx=tx-R.root.position.x, dz=tz-R.root.position.z;
+  if(dx*dx+dz*dz>0.04) R.faceH=Math.atan2(dx,dz);
+}
+
 /* THE AXE, IN HIS HAND ONLY WHILE HE IS USING IT. Parented to the hand BONE
    rather than to the character root, so it follows the swing for free instead
    of needing its own per-frame transform — which would also have been a second
@@ -9581,6 +9840,7 @@ function makeWorkerBody(role,n,arriving){
   if(!sk) return null;                    // model missing: rate still works
   borrowClip(sk,'harvest'); borrowClip(sk,'shear');
   sk.root.scale.setScalar(WORKER_SCALE);
+  varyVillager(sk, n);
   const home=workerHome(role,n);
   /* A NEW HELPER WALKS IN THROUGH THE GATE. Popping into existence at their
      post makes the moment the game just celebrated -- "a neighbour joined the
@@ -10190,7 +10450,7 @@ function buildWorld(){
   /* farmFenceZone(), not ZONES[0]: the south run sits further out once the west
      field is bought. The barn gap is in LOCAL x and cx never moves, so the gap
      is unaffected by the push. */
-  ringFence(farmFenceZone(), {from:-8.6, to:0.6}, 'farm');
+  ringFence(farmFenceZone(), {from:-8.6, to:0.6}, 'farm', FARM_GATE);
 
   /* meadow */
   ringFence(ZONES[1]);
@@ -10252,7 +10512,6 @@ function buildWorld(){
      market, so the market belongs beside the produce. See buildMarket(). */
   const well=makeWell(); well.position.set(7.5,0,5.5); scene.add(well); blockObject(well);
   buildMarket();
-  buildFarmhouseZone();
   /* THE LAMP AT THE CROSSROADS. It was a dark tube with a white ball on top --
      a lollipop -- and it stands at the SPAWN POINT, so it is in the first frame
      of every session and most screenshots of this game. The forged one has the
@@ -10314,8 +10573,13 @@ function buildWorld(){
      The forged signpost carries a solid board, so the sprite reads as paint on
      timber rather than as words in a hole. Its frame opening is centred at
      SIGN_BOARD_Y in the model's own coordinates, which is the height the
-     sprite has to sit at — stated once here so the two cannot drift apart. */
-  const SIGN_BOARD_Y=4.4;
+     sprite has to sit at — stated once so the two cannot drift apart.
+
+     HOISTED OUT OF buildWorld() (2026-08-09) because it is no longer used only
+     in here: the market yard stands its own sign, and a local const meant that
+     second caller threw "SIGN_BOARD_Y is not defined" at boot. Copying the 4.4
+     would have been the obvious fix and the wrong one — the whole point of the
+     constant is that the board height exists once. */
   /* THE POST IS SCALED TO THE LABEL, not the other way round.
 
      The first version put every label at the board's own height, 4.4 — and
@@ -10350,8 +10614,17 @@ function buildWorld(){
      Derived from the zone's own east edge rather than from a pair of offsets,
      so it stays outside however far the fence is pushed: farmFenceZone() only
      ever moves cz and hz, never cx or hx. It also now stands where the lane
-     from the crossroads arrives, which is where a waymarker is actually read. */
-  placeSign('🌾 FARM',   ZONES[0].cx+ZONES[0].hx+3.5, ZONES[0].cz, 4.4);
+     from the crossroads arrives, which is where a waymarker is actually read.
+
+     BESIDE THE GATE, NOT IN IT (2026-08-09). Standing where the lane arrives
+     became standing in the DOORWAY the moment the entrance moved to this run,
+     and its collision disc closed the gate: driven, the farmer walked to
+     x=-20.63 and stopped, 4.4 units short of a fence he was supposed to walk
+     through. Exactly the fault the owner reported about the meadow's sign —
+     "it is in the middle of the road" — arriving a second time because the road
+     moved instead of the sign. Offset clear of the opening, on the same side
+     the meadow's was moved to. */
+  placeSign('🌾 FARM',   ZONES[0].cx+ZONES[0].hx+3.5, FARM_GATE.at-(FARM_GATE.half+3.5), 4.4);
   /* OFF THE ROAD. The owner: "the sign for Meadow is in the middle of the
      road, can you move it to the left side of the fence of the Meadow." It was
      at the zone's centre-x, which is exactly where the path runs through the
@@ -10397,8 +10670,9 @@ function buildWorld(){
        - keep a small circle at the player's feet clear so boot is never
          face-first into a bush.
      Everything else is fair ground. */
-  const inZoneCore=(x,z)=>ZONES.some(zz=>
-    Math.abs(x-zz.cx)<zz.hx+1.5 && Math.abs(z-zz.cz)<zz.hz+1.5);
+  // One definition, module level — see inRegionCore(). It was written here as a
+  // ZONES-only test, and the market yard is not in ZONES.
+  const inZoneCore=inRegionCore;
   /* NO DECORATION ON A CROP BED — ANY OF THE NINE, OWNED OR NOT.
      (owner report, 2026-08-08: flowers standing in the tilled soil)
 
@@ -10582,11 +10856,36 @@ function buildWorld(){
      ONE DRAW CALL for all of them -- see forgeInstanced(). The placements are
      collected first and the mesh built once at the end, rather than adding
      each bush as it is decided. */
-  const bushPlacements=[];
+  /* TWO FIELDS, ONE MODEL — the dark half of the value range.
+
+     `docs/ART-DIRECTION.md` section 4 has said the same thing since the colour
+     pass and it has never been actioned: "our build sits almost entirely in one
+     mid-bright band, which reads flat even at correct saturation ... EVERY
+     SCREEN SHOULD CONTAIN SOMETHING GENUINELY DARK", and it is explicit that
+     this is "a composition rule about what we PLACE, not a lighting one".
+
+     That last clause is why this is done here and not with a darker ground or a
+     lower light. Painted dark patches on the grass were tried and REMOVED — the
+     owner: "I don't like how it looks with the grass that looks like a shadow
+     or a dark spot" — so darkening the map is a road already walked to a dead
+     end. Darkening OBJECTS is the road the document actually points at.
+
+     A bush is the right object to do it with because it is the most numerous
+     thing in the world and the one that lines every route, so a dark bush lands
+     in nearly every frame the player will ever see. It costs one extra draw
+     call: the placements are split into two lists and the second field's
+     material is cloned and multiplied down (see forgeInstanced's `tint`).
+
+     ONE IN THREE, and clustered by position rather than at random per bush: a
+     salt-and-pepper mix of light and dark reads as noise, whereas a whole clump
+     in shade reads as depth. Keyed off the cluster's own coordinates so it
+     stays deterministic for the shots harness. */
+  const bushPlacements=[], bushDark=[];
   const addBush=(x,z)=>{
     const bs=0.8+rnd()*0.7, br=0.55*bs;
     if(!canPlace(x,z,br)) return false;
-    bushPlacements.push({x:x, z:z, s:bs, ry:rnd()*6.3});
+    const dark=((Math.floor(x*0.14)+Math.floor(z*0.14))%3+3)%3===0;
+    (dark?bushDark:bushPlacements).push({x:x, z:z, s:bs, ry:rnd()*6.3});
     // Solid, but only at its own footprint. A bush is waist-high and walking
     // through one looks wrong; a disc this small cannot snag, and canPlace()
     // has already kept it off the path.
@@ -10636,6 +10935,11 @@ function buildWorld(){
     for(let k=0;k<n;k++) addBush(ccx+(rnd()-0.5)*9, ccz+(rnd()-0.5)*8);
   }
   const bushField=forgeInstanced('bush', bushPlacements);
+  /* 0.46 — measured against the document's own target rather than chosen. The
+     bush's leaf green renders around 62% brightness; a shaded conifer green in
+     the reference sits near 28%. Multiplying by 0.46 lands there, which is dark
+     enough to be a genuine anchor and still plainly the same plant. */
+  const bushShade=forgeInstanced('bush', bushDark, 0.46);
   // A missing model costs that object, never the whole world -- the same rule
   // every other forged asset here follows.
   // TAGGED AS DECORATION so an instrument can ask "is anything ornamental
@@ -10649,6 +10953,7 @@ function buildWorld(){
      against a build with a flower clump planted dead-centre on all nine beds.
      traverse() puts the tag where any consumer will actually look for it. */
   if(bushField){ bushField.traverse(o=>{ o.userData.deco='bush'; }); scene.add(bushField); }
+  if(bushShade){ bushShade.traverse(o=>{ o.userData.deco='bush'; }); scene.add(bushShade); }
 
   /* Flowers take a much smaller clearance than anything else: they are the one
      scattered thing the player is MEANT to walk through, so they get no
@@ -10807,6 +11112,9 @@ function buildWorld(){
   // scale has been set. Attaching it here made the axe 1.7648x too big,
   // because the root had not been scaled yet when the bone was measured.
   if(FarmerRig && FarmerRig.skeletal) makeChopClip(FarmerRig.skeletal);
+  // The quick collect gesture, built the same way and for the same reason —
+  // the hero model ships no reach either, and generating one costs credits.
+  if(FarmerRig && FarmerRig.skeletal) makePluckClip(FarmerRig.skeletal);
   // Generated NPCs are spawned from the registry, after the player exists so the two cannot
   // race for the same blocker list.
   spawnGeneratedCharacters();
@@ -10932,9 +11240,33 @@ const RAIL_Y=[0.34, 0.68];
    They were right, and the numbers said so: the barn stood at z=-3 while the
    farm's fence runs at z=1, so it was FOUR UNITS OUTSIDE the enclosure -- a
    building near a farm rather than a building on it. */
-function ringFence(zone, northGap, tag){
-  const step=3.0, gate=4;
+/* THE GATE IS A SPEC NOW, NOT A SIDE (owner ruling 2026-08-09).
+
+   "Move/recompose the entrance so it is on the RIGHT SIDE of the farm fence."
+
+   It was hard-coded to the +z run at the zone's centre-x: a hole four units
+   either side of the middle of the bottom edge, with the rails written to stop
+   short of exactly that. Moving it meant either a second copy of the loops or a
+   parameter, and a second copy is how the two ends of one fence drift apart.
+
+   AND THE BOTTOM GATE WAS ALREADY WRONG, which is worth saying because it makes
+   this a correction rather than a preference. The lane from the crossroads is
+   `PATHS[0]`, and it ends at (ZONES[0].cx+11, ZONES[0].cz) — inside the farm,
+   approached from the EAST. Sampled, it crosses x = -25, the fence's east run,
+   at about z = 20. So the main road into the farm has always run straight into
+   a solid fence, while the actual opening sat at the bottom where no path goes
+   and the "🌾 FARM" signpost stands beside the east run pointing at a wall. The
+   sign, the road and the gate now agree.
+
+   `at` IS A WORLD COORDINATE, not a zone-local offset, and that is deliberate:
+   the farm's fence moves when the west field is bought (farmFenceZone() adds
+   4.75 to cz and hz), and a local offset would drag the gate south with it —
+   away from the road it exists to meet. */
+function ringFence(zone, northGap, tag, gate){
+  const step=3.0;
+  const g = gate || {side:'+z', at:zone.cx, half:4};
   const inGap = x => northGap && x>=northGap.from && x<=northGap.to;
+  const inGate = (side, c) => side===g.side && Math.abs(c-g.at)<=g.half;
   function rail(x1,z1,x2,z2){
     const len=Math.hypot(x2-x1,z2-z1);
     for(let i=0;i<RAIL_Y.length;i++){
@@ -10978,40 +11310,65 @@ function ringFence(zone, northGap, tag){
     groundShadow(x,z,0.16*(s||1),tag);
   };
   for(let x=-zone.hx;x<=zone.hx;x+=step){
+    const wx=zone.cx+x;
     for(const zSide of [-zone.hz,zone.hz]){
-      if(zSide>0 && Math.abs(x)<gate) continue;
+      if(inGate(zSide>0?'+z':'-z', wx)) continue;
       if(zSide<0 && inGap(x)) continue;         // the building stands here
-      post(zone.cx+x, zone.cz+zSide);
+      post(wx, zone.cz+zSide);
     }
   }
   for(let z=-zone.hz;z<=zone.hz;z+=step){
+    const wz=zone.cz+z;
     for(const xSide of [-zone.hx,zone.hx]){
-      post(zone.cx+xSide, zone.cz+z);
+      if(inGate(xSide>0?'+x':'-x', wz)) continue;
+      post(zone.cx+xSide, wz);
     }
   }
-  /* THE GATE. The opening already existed -- the loops above have always left
-     a gap of `gate` either side of centre on the +z run, and the rails already
-     stop short of it. What was missing was any sign that it IS a gate rather
-     than a hole where the fence forgot to continue.
-     Two heavier posts flanking the opening is the cheapest thing that says
+  /* THE GATE POSTS. What was missing before the opening got a pair of these was
+     any sign that it IS a gate rather than a hole where the fence forgot to
+     continue. Two heavier posts flanking it is the cheapest thing that says
      "entrance", and it costs nothing extra to draw: same model, same instanced
      field, a larger per-instance scale. */
-  post(zone.cx-gate, zone.cz+zone.hz, 1.28);
-  post(zone.cx+gate, zone.cz+zone.hz, 1.28);
+  if(g.side==='+z'||g.side==='-z'){
+    const fz=zone.cz+(g.side==='+z'?zone.hz:-zone.hz);
+    post(g.at-g.half, fz, 1.28);
+    post(g.at+g.half, fz, 1.28);
+  }else{
+    const fx=zone.cx+(g.side==='+x'?zone.hx:-zone.hx);
+    post(fx, g.at-g.half, 1.28);
+    post(fx, g.at+g.half, 1.28);
+  }
+
+  /* ONE RUN OF FENCE, with the opening taken out of it if the gate is on this
+     side. Written once and called four times rather than four hand-split
+     literals — which is what let the old gate exist on exactly one edge.
+     Clamped rather than assumed to be interior, so a gate specified past the
+     end of its run leaves a solid fence instead of a negative-length rail. */
+  function fenceRun(side, fixed, from, to, axis){
+    const seg=(a,b)=>{
+      if(Math.abs(b-a)<0.01) return;
+      if(axis==='x') rail(a,fixed,b,fixed); else rail(fixed,a,fixed,b);
+    };
+    const lo=Math.min(from,to), hi=Math.max(from,to);
+    if(side!==g.side){ seg(lo,hi); return; }
+    const a=g.at-g.half, b=g.at+g.half;
+    if(b<=lo || a>=hi){ seg(lo,hi); return; }
+    seg(lo, Math.max(lo,a));
+    seg(Math.min(hi,b), hi);
+  }
 
   /* The far run is split around the gap, so the fence RUNS INTO the building
      from both sides instead of stopping short of it or passing through it.
      Without a gap it is one rail exactly as before. */
   if(northGap){
-    rail(zone.cx-zone.hx, zone.cz-zone.hz, zone.cx+northGap.from, zone.cz-zone.hz);
-    rail(zone.cx+northGap.to, zone.cz-zone.hz, zone.cx+zone.hx, zone.cz-zone.hz);
+    fenceRun('-z', zone.cz-zone.hz, zone.cx-zone.hx, zone.cx+northGap.from, 'x');
+    fenceRun('-z', zone.cz-zone.hz, zone.cx+northGap.to, zone.cx+zone.hx, 'x');
   } else {
-    rail(zone.cx-zone.hx, zone.cz-zone.hz, zone.cx+zone.hx, zone.cz-zone.hz);
+    fenceRun('-z', zone.cz-zone.hz, zone.cx-zone.hx, zone.cx+zone.hx, 'x');
   }
-  rail(zone.cx-zone.hx, zone.cz+zone.hz, zone.cx-gate,    zone.cz+zone.hz);
-  rail(zone.cx+gate,    zone.cz+zone.hz, zone.cx+zone.hx, zone.cz+zone.hz);
-  rail(zone.cx-zone.hx, zone.cz-zone.hz, zone.cx-zone.hx, zone.cz+zone.hz);
-  rail(zone.cx+zone.hx, zone.cz-zone.hz, zone.cx+zone.hx, zone.cz+zone.hz);
+  fenceRun('+z', zone.cz+zone.hz, zone.cx-zone.hx, zone.cx+zone.hx, 'x');
+  fenceRun('-x', zone.cx-zone.hx, zone.cz-zone.hz, zone.cz+zone.hz, 'z');
+  fenceRun('+x', zone.cx+zone.hx, zone.cz-zone.hz, zone.cz+zone.hz, 'z');
 }
 
 /* Built once, after every zone has been ringed. Returns the two meshes, or
@@ -11151,123 +11508,204 @@ function syncResourceNodes(){
 }
 
 /* =====================================================================
-   THE FARMHOUSE DOORSTEP — a place, not a button
+   THE ZONE DOCK — the region you are standing in owns its upgrades
    =====================================================================
-   The farmer walks into the ring outside the barn and the upgrade cards slide
-   up; he walks out and they slide away. There is nothing to tap and nothing to
-   close.
+   THE DOORSTEP RING IS GONE (owner ruling 2026-08-09). Until now the farm's
+   two upgrades belonged to the BARN: a 4.2-unit ring outside its door raised
+   the cards, and the barn itself answered a tap by telling you to go and stand
+   on the ring. The owner ruled that ownership away — farm upgrades belong to
+   the FARM — and asked for the meadow to work the same way.
 
-   THE RING HAS TO BE FINDABLE WITHOUT LOOKING LIKE DEBUG ART, which is the
-   whole difficulty. What makes a marked circle read as programmer art is a
-   hard bright outline at full opacity; what makes one read as a doorstep is
-   the same trodden-earth vocabulary the rest of this world already speaks. So
-   it is a soft warm ring at low opacity in the colour family of the paths,
-   breathing slowly — the pulse says "come here" without a colour that says
-   "debug".
+   That is a better rule than the one it replaces, and not only because it was
+   asked for. A doorstep is a second place to learn: the player already knows
+   where their farm is, and had to be TOLD where its upgrade spot was (there
+   was a whole guidance checkpoint doing exactly that, and it is now redundant).
+   Standing anywhere in your own farm is a thing a player does by playing.
 
-   SMALL ENOUGH TO BE WALKED INTO ON PURPOSE. 4.2 units against a farmer 0.42
-   across: you have to mean it, and it is not something you cross by accident
-   on the way to the beds, which are nine units further south.
+   WHY THE ZONE RECTANGLE AND NOT A NEW SHAPE. ZONES already defines each
+   region's extent, `zoneAt()` already answers "which one am I in", and the
+   fence the player can see IS that rectangle. Inventing a dock radius would
+   have put an invisible boundary inside a visible one, and the two would have
+   disagreed the first time the fence moved — which, for the farm, it does.
+   `farmFenceZone()` is used rather than ZONES[0] for exactly that reason: after
+   the west field is bought the fence moves south, and the dock has to follow
+   the fence rather than the number the beds are laid out from.
 
-   FLAT ON THE GROUND with depthWrite off and a 35mm lift, because a disc
-   coplanar with the ground plane z-fights, and the fight looks worse than
-   anything the ring could have looked like. */
-const FARMHOUSE_R=4.2;
-const farmhousePos = () => ({x:ZONES[0].cx-4, z:ZONES[0].cz-ZONES[0].hz+5.6});
-let farmhouseRing=null;
-function buildFarmhouseZone(){
-  const p=farmhousePos();
-  const g=new THREE.Group();
-  const ring=new THREE.Mesh(
-    new THREE.RingGeometry(FARMHOUSE_R*0.80, FARMHOUSE_R, 40),
-    new THREE.MeshBasicMaterial({color:SRGB(0xe6b877), transparent:true, opacity:0.42,
-                                 depthWrite:false, side:THREE.DoubleSide}));
-  ring.rotation.x=-Math.PI/2;
-  const fill=new THREE.Mesh(
-    new THREE.CircleGeometry(FARMHOUSE_R*0.80, 40),
-    new THREE.MeshBasicMaterial({color:SRGB(0xdfae6d), transparent:true, opacity:0.15,
-                                 depthWrite:false}));
-  fill.rotation.x=-Math.PI/2;
-  g.add(fill); g.add(ring);
-  g.position.set(p.x, 0.035, p.z);
-  scene.add(g);
-  farmhouseRing={group:g, ring:ring, fill:fill};
+   ONE ROW PER CONTEXT. Adding a third region's upgrades is a row here and no
+   code anywhere. */
+const ZONE_DOCKS = [
+  { key:'farm',
+    /* The FENCE, not ZONES[0]. See above — these two differ by 4.75 units in z
+       once the west field is built, and the fence is the one the player sees. */
+    area: () => farmFenceZone(),
+    shop: () => FARM_SHOP,
+    items: ['speed','seeds'],
+    open: () => true },
+  { key:'meadow',
+    area: () => ZONES[1],
+    shop: () => MEADOW_SHOP,
+    /* NOT 'open'. Unlocking the meadow buys a REGION, and a region unlock is
+       bought standing on the ground it opens — the same rule the west field and
+       every crop bed follow. It stays a world anchor at the gate. What moves in
+       here is what the meadow does once you own it. */
+    items: ['sheep','wool','shear'],
+    open: () => !!S.meadowOpen },
+];
+
+/* Which dock the farmer is standing in, or null. Rectangles, because that is
+   what a zone is; first match wins and the zones do not overlap. */
+function dockContextNow(){
+  if(!FarmerRig||!FarmerRig.root||!S) return null;
+  const px=FarmerRig.root.position.x, pz=FarmerRig.root.position.z;
+  for(const d of ZONE_DOCKS){
+    if(!d.open()) continue;
+    const a=d.area();
+    if(Math.abs(px-a.cx)<=a.hx && Math.abs(pz-a.cz)<=a.hz) return d;
+  }
+  return null;
 }
-function farmerInFarmhouse(){
-  if(!FarmerRig||!FarmerRig.root) return false;
-  const p=farmhousePos();
-  const dx=FarmerRig.root.position.x-p.x, dz=FarmerRig.root.position.z-p.z;
-  return dx*dx+dz*dz <= FARMHOUSE_R*FARMHOUSE_R;
+/* Is there anything in this context still worth showing? A strip of MAX cards
+   parked across the bottom of a finished farm is clutter that never goes away,
+   and the owner's ruling explicitly asks not to obstruct the view
+   unnecessarily. An all-maxed context simply has no dock. */
+function dockHasSomething(d){
+  const list=d.shop();
+  return d.items.some(k=>{ const it=shopItem(list,k); return it && !(it.maxed&&it.maxed()); });
 }
 /* Called every frame. classList.toggle() with an explicit second argument is a
    no-op when the state already matches, so this neither fights the CSS
    transition (R7) nor touches the DOM while the farmer stands still. */
-let _dockOpen=false;
-function updateFarmhouseZone(dt,t){
-  if(farmhouseRing){
-    /* A slow breath, and it stops once both upgrades are bought — a ring that
-       goes on calling you to a shop with nothing left in it is exactly the nag
-       the guidance rules forbid, and it would be the last thing on screen
-       still asking for attention in a finished farm. */
-    const live=FARMHOUSE_KEYS.some(k=>{ const it=shopItem(FARM_SHOP,k); return it && !it.maxed(); });
-    farmhouseRing.ring.material.opacity = live ? 0.42+0.14*Math.sin(t*2.0) : 0.16;
-  }
-  const inside=farmerInFarmhouse();
-  if(inside!==_dockOpen){
-    _dockOpen=inside;
-    if(inside){ renderFarmDock(); sfx('tap'); }
-    const el=$('#farmDock');
-    if(el) el.classList.toggle('show', inside);
-  }
+let _dockKey=null;
+function updateZoneDock(dt,t){
+  const d=dockContextNow();
+  const key=(d && dockHasSomething(d)) ? d.key : null;
+  if(key===_dockKey) return;
+  _dockKey=key;
+  const el=$('#zoneDock');
+  if(key){ renderZoneDock(); sfx('tap'); }
+  if(el) el.classList.toggle('show', !!key);
 }
 
 /* =====================================================================
-   THE MARKET — three stands, below the farm
+   THE MARKET — ONE roadside market yard  (owner ruling 2026-08-09)
    =====================================================================
-   IT USED TO BE ONE STALL AT THE CROSSROADS, forty units from the nearest crop
-   bed, next to the wishing well, selling nothing. The produce loop now ends
-   here, so it has moved to where that loop happens: a short lane running east
-   from the farm's south-east corner, close enough to walk a basket of carrots
-   to and far enough out that it never crowds the beds.
+   IT WAS THREE SEPARATE STALLS IN A ROW, and the owner played it: "The current
+   three-customer/stall arrangement is badly positioned. It blocks the walking
+   track and visually fragments the market." Photographed at iPhone size, three
+   six-unit stalls on a six-unit spacing form an unbroken eighteen-unit wall
+   that runs off both edges of the frame — three copies of one object reading as
+   a barricade rather than as a place.
 
-   x = -10 to -22 IS OUTSIDE THE FARM FENCE IN X (which runs -59 to -25) and
-   stays outside it however far the fence is pushed south, because
-   farmFenceZone() moves cz and hz and never cx or hx. So the lane cannot be
-   swallowed by the west field, which is the one expansion that could have
-   grown into it. */
-const MARKET={x:-16, z:36};
-const MARKET_SPACING=6;
-const marketStandPos = k => ({x:MARKET.x+(k-1)*MARKET_SPACING, z:MARKET.z});
+   The ruling: "There should be ONE coherent farm selling stand / roadside
+   market destination", further down the world, spaced away from the farmland,
+   with "an intentional small fenced market composition" and room for buyers.
+
+   SO IT IS A YARD, NOT A ROW. One stall as the hero, a fence around a patch of
+   ground with one gate, a sign at the gate, and produce and crates dressing the
+   pitch. The three buyer slots are unchanged economically — the ruling says to
+   keep them if they work, and they do — but they are now three ORDERS AT ONE
+   PLACE, stacked over the one stand, instead of three buildings.
+
+   WHERE IT MOVED, AND THE THREE THINGS THAT FIXED. It was at x=-16, pressed
+   against the farm's south-east corner and straddling the ground the west field
+   expands into. Now at x=-4:
+
+     - It is 21 units clear of the farm's east fence instead of 3, which is the
+       "intentional spacing from farmland" the ruling asks for.
+     - It is off the farm lane entirely. The lane from the crossroads
+       (PATHS[0]) runs west into the new right-hand gate; the market has its own
+       road running south from the same crossroads, so the two destinations no
+       longer share a walking track.
+     - It cannot be swallowed by an expansion. farmFenceZone() moves cz and hz
+       and never cx or hx, so the farm can only ever grow SOUTH inside
+       x = -59..-25. The yard is east of that, for good.
+
+   WHY NOT FURTHER SOUTH THAN THIS. Measured rather than judged: the camera sits
+   CAM_BACK*zoom = 26 units behind the farmer and the bottom of the frame lands
+   about 13 units behind him, so a player standing past z = 42 has the world's
+   own edge in shot. The yard's south fence is at 42.5 and the player trades
+   from about 36. That is as far down as the world can go without showing its
+   seam — which the old market already did whenever the player walked past it. */
+/* The yard's geometry is world layout, so it lives with ZONES — see
+   "WHERE THE MARKET STANDS" up there. PATHS is built at parse time and one of
+   its curves ends on the market's gate, so these three have to be initialised
+   before it: leaving them here threw "Cannot access 'MARKET_GATE' before
+   initialization" and the whole game came up blank. Caught by the pixel gate,
+   which is the check that exists for exactly this. */
+/* ONE STAND, THREE ORDERS. Every slot resolves to the same piece of ground; the
+   anchor system stacks the three cards above it (see addAnchor's `stack`), which
+   is what turns "three stalls" into "three orders at this market" without
+   changing a single line of the economy. */
+const marketStandPos = k => ({x:MARKET.x, z:MARKET.z});
 /* THE CUSTOMER STANDS AT THE SIDE OF THEIR STALL, IN PROFILE, and that is a
    camera decision rather than a staging one. The obvious place is behind the
    counter facing the farmer — but the farmer walks down from the beds, so the
    camera is always further down the lane than the stall is, and a customer
    turned to face him is a customer with their back to the lens. Standing them
    at the near corner, angled in toward the counter, shows a face from the one
-   angle this game is ever seen from. */
-const marketBuyerPos = k => ({x:MARKET.x+(k-1)*MARKET_SPACING-2.9, z:MARKET.z+1.7});
-// Off-stage, straight down the lane. Where a customer comes from and goes back
-// to, far enough out that neither end of the walk happens on screen.
-const marketOffPos  = k => ({x:MARKET.x+(k-1)*MARKET_SPACING, z:MARKET.z+15});
+   angle this game is ever seen from.
+
+   Three of them now share one counter, so they are spread along its front
+   rather than each having their own. */
+/* A LOOSE ARC, not a row. Three villagers on one straight line at one distance
+   read as a queue of clones; staggering the middle one back turns it into a
+   group standing at a counter. The outer two are far enough round to be seen in
+   three-quarter rather than from directly behind. */
+const MARKET_BUYER_SPOTS=[{dx:-5.6, dz:3.0}, {dx:0.2, dz:3.6}, {dx:5.4, dz:3.1}];
+const marketBuyerPos = k => {
+  const o=MARKET_BUYER_SPOTS[k] || MARKET_BUYER_SPOTS[0];
+  return {x:MARKET.x+o.dx, z:MARKET.z+o.dz};
+};
+/* OFF-STAGE IS OUTSIDE THE GATE, and that is the ruling's "buyers may
+   arrive/leave through this location" taken literally. A customer who
+   materialised inside a fenced yard would make the fence a decoration. */
+const marketOffPos  = k => ({x:MARKET_GATE.at+(k-1)*2.6, z:MARKET_YARD.cz-MARKET_YARD.hz-13});
+/* The one waypoint that keeps them honest: walk to the gate, THEN to the
+   counter. A straight line from off-stage to a counter slot cuts the corner of
+   the yard and takes the villager through the fence — which is exactly the
+   clipping the meadow's own NPC routes were audited for once already. */
+/* PER SLOT, NOT ONE POINT. The first version returned a single coordinate for
+   all three, so three customers arriving together walked into the same spot and
+   stood inside one another in the gateway — photographed, and it read as one
+   villager with three heads. Spread across the opening's width, which is what a
+   gate that admits three people looks like anyway. */
+const marketGatePos = k => ({x:MARKET_GATE.at+(k-1)*(MARKET_GATE.half*0.62),
+                             z:MARKET_YARD.cz-MARKET_YARD.hz-1.2});
 const BUYER_WALK=4.6;
 
 const buyerBodies=[];
 function buildMarket(){
+  /* THE YARD ITSELF, before anything stands in it. Same ringFence() as the farm
+     and the meadow, so the posts and rails join their instanced fields and the
+     collision comes from the same call that draws them. */
+  ringFence(MARKET_YARD, null, 'market', MARKET_GATE);
+
+  /* THE HERO STAND. One, not three, and a little larger than the row's stalls
+     were: it is the only building in this composition now, so it carries it. */
+  const st=makeStall();
+  if(st){
+    st.position.set(MARKET.x,0,MARKET.z);
+    st.scale.setScalar(1.22);
+    /* COUNTER TOWARD THE CAMERA. It was Math.PI, inherited from the row of
+       three — and photographed, that is the stall's BACK: a plain brown panel
+       filling the middle of the frame with the goods, the counter and the
+       produce all hidden on the far side. The row got away with it because
+       three of them read as a wall of awnings rather than as a shop.
+
+       One hero stand cannot. This game is only ever seen from +z, so the side
+       of the stall the player is buying from has to be the +z side. */
+    st.rotation.y=0;
+    // TAPPABLE, so the market can answer. It is the one place guidance
+    // actively sends the player, and a dead tap there is the worst possible
+    // first impression of the mechanic the whole loop now ends in.
+    st.userData.type='market'; st.userData.idx=1;
+    scene.add(st);
+    blockObject(st,0.85);
+    groundShadow(MARKET.x, MARKET.z, 3.6, 'market');
+  }
+  dressMarketYard();
+
   for(let k=0;k<BUYER_SLOTS;k++){
-    const p=marketStandPos(k);
-    const st=makeStall();
-    if(st){
-      st.position.set(p.x,0,p.z);
-      // Turned a few degrees apart so three of the same model do not read as
-      // three copies of one object -- the same trick the flower field uses.
-      st.rotation.y=Math.PI + (k-1)*0.22;
-      // TAPPABLE, so the market can answer. It is the one place guidance
-      // actively sends the player, and a dead tap there is the worst possible
-      // first impression of the mechanic the whole loop now ends in.
-      st.userData.type='market'; st.userData.idx=k;
-      scene.add(st);
-      blockObject(st,0.85);
-    }
     /* THE CUSTOMER. The villager model, the same one the farmhands use, so a
        buyer costs no new asset at all -- and it is the right read: these are
        people from the same valley. A missing model costs the BODY and never
@@ -11276,6 +11714,8 @@ function buildMarket(){
     const sk=makeSkeletalCharacter(WORKER_MODEL, true);
     if(sk){
       sk.root.scale.setScalar(WORKER_SCALE);
+      // Offset by 3 so a buyer and a farmhand of the same index are not twins.
+      varyVillager(sk, k+3);
       const off=marketOffPos(k);
       sk.root.position.set(off.x,0,off.z);
       sk.root.visible=false;
@@ -11288,6 +11728,81 @@ function buildMarket(){
     }
   }
 }
+/* WHAT MAKES IT A MARKET RATHER THAN A STALL ON A LAWN.
+
+   The ruling asks for "crates/baskets/signage/produce details if appropriate",
+   and this is the cheap half of the visual pass: every one of these models is
+   already in the embedded forge pack, so the whole composition costs zero new
+   assets and zero credits.
+
+   PLACED, NOT SCATTERED. `ART-DIRECTION.md` §3 is explicit that props belong in
+   believable places — "crates by a shed, tools by a field, a sack where someone
+   was working" — and that scatter without a reason reads as random. So the
+   crates are stacked at the ends of the counter where stock would be unloaded,
+   the produce sits ON the counter line, the barrels are by the gate where a
+   cart would stop, and the wheelbarrow is parked against the fence.
+
+   The crop props are the game's own crop models, which is the detail that ties
+   the yard to the farm: what is on the stall is literally what you grew. */
+function dressMarketYard(){
+  const put=(name,x,z,ry,sc,shadow)=>{
+    const o=forge(name);
+    if(!o) return;                                  // a missing prop costs a prop
+    o.position.set(x,0,z);
+    o.rotation.y=ry||0;
+    if(sc&&sc!==1) o.scale.setScalar(sc);
+    scene.add(o);
+    if(shadow!==0) groundShadow(x,z,(shadow||0.7),'market');
+    blocker(x,z,(shadow||0.7)*0.8,'market');
+  };
+  const M=MARKET, Y=MARKET_YARD;
+  // Stock at both ends of the counter, stacked where it would be unloaded.
+  put('crate',   M.x-4.6, M.z+0.4, 0.22, 0.62);
+  put('crate',   M.x-4.2, M.z+1.7, -0.35, 0.52);
+  put('crate',   M.x+4.5, M.z+0.5, -0.18, 0.60);
+  // Barrels by the gate, where a cart would pull up.
+  put('barrel',  MARKET_GATE.at-2.6, Y.cz-Y.hz+1.6, 0.4, 1.0);
+  put('barrel',  MARKET_GATE.at-3.4, Y.cz-Y.hz+2.5, -0.2, 0.85);
+  // Parked against the west fence, out of the walking line.
+  put('wheelbarrow', Y.cx-Y.hx+1.8, Y.cz+2.2, 1.35, 1.0);
+  put('hay',     Y.cx+Y.hx-1.9, Y.cz+3.4, 0.5, 0.9);
+  /* THE PRODUCE, ON THE GROUND AT THE FOOT OF THE COUNTER. No collision and no
+     shadow of their own: they are small enough that a disc round each would
+     make the front of the stall a fence, and the stall's own contact shadow
+     already grounds that patch. */
+  const crop=(name,x,z,sc)=>{
+    const o=forge(name);
+    if(!o) return;
+    o.position.set(x,0,z);
+    o.rotation.y=(x*1.7)%3.14;
+    o.scale.setScalar(sc);
+    scene.add(o);
+  };
+  /* IN FRONT OF THE COUNTER, on the camera side, because that is the side the
+     stall now faces and the only side anything is visible from. Kept low and
+     wide of centre so they dress the pitch instead of standing between the
+     player and the thing he is pressing. */
+  crop('cropcarrot',    M.x-3.5, M.z+2.1, 0.60);
+  crop('croptomato',    M.x-2.3, M.z+2.5, 0.55);
+  crop('cropsunflower', M.x+3.3, M.z+2.2, 0.50);
+  /* THE SIGN AT THE GATE. Placed here rather than with the zone signs because
+     it belongs to this composition — and set back from the opening on the same
+     principle that moved the farm's sign out of its new doorway: a waymarker
+     that blocks the way in is a wall with writing on it. */
+  const post=forge('signpost');
+  if(post){
+    const sx=MARKET_GATE.at+MARKET_GATE.half+2.4, sz=Y.cz-Y.hz-0.6;
+    post.position.set(sx,0,sz);
+    post.scale.setScalar(4.4/SIGN_BOARD_Y);
+    scene.add(post);
+    blocker(sx,sz,0.45,'market');
+    groundShadow(sx,sz,0.7,'market');
+    const sg=makeSign('🧺 MARKET');
+    sg.position.set(sx,4.4,sz+0.18);
+    scene.add(sg);
+  }
+}
+
 /* Called when a stand empties — a sale, or an order retired because the seeds
    changed. The body walks off rather than blinking out, because a customer who
    vanishes the instant they are paid reads as the game forgetting them. */
@@ -11310,13 +11825,38 @@ function updateBuyerBodies(dt,t){
   for(const b of buyerBodies){
     const order=S.buyers && S.buyers[b.k];
     const wanted=!!(order && order.item);
-    if(b.state==='away' && wanted) b.state='in';
-    if(b.state==='here' && !wanted) b.state='out';
+    // A change of mind restarts the route at its first leg — see below.
+    if(b.state==='away' && wanted){ b.state='in';  b.leg=0; }
+    if(b.state==='here' && !wanted){ b.state='out'; b.leg=0; }
     if(!b.sk){ b.state = wanted ? 'here' : 'away'; continue; }
-    const tgt = (b.state==='in'||b.state==='here') ? marketBuyerPos(b.k) : marketOffPos(b.k);
     const r=b.sk.root;
     if(b.state==='away'){ r.visible=false; b.sk.mixer.update(dt); continue; }
     r.visible=true;
+    /* THROUGH THE GATE, BOTH WAYS. The yard is fenced now, and a straight line
+       from off-stage to a counter slot crosses the fence for two of the three
+       slots — so a customer would walk through the rails to reach a stall
+       inside an enclosure, which makes the enclosure a picture of a fence
+       rather than a fence.
+
+       A TWO-LEG ROUTE, NOT A GEOMETRIC TEST. The first version asked "am I
+       inside the yard yet?" and aimed at the gate until the answer changed.
+       It deadlocked, and the deadlock is worth writing down because it is the
+       kind that looks obviously correct: the waypoint stands 1.2 units OUTSIDE
+       the fence line, so a villager who reached it was still outside, still
+       aimed at it, and stood in the gateway for ever. Every sale in
+       verify-loop.js failed with "Need -7 more carrot" — a negative shortfall,
+       which is the deny text saying the stock is there and the customer is not.
+       Putting the waypoint inside instead just moves the deadlock to the way
+       out.
+
+       So the route is explicit: leg 0 walks to the gateway, leg 1 walks to the
+       destination, and the leg advances on arrival. No edge case, nothing that
+       depends on which side of a line a waypoint happens to fall, and it reads
+       the way the walk actually is. Still not pathfinding — two points. */
+    if(b.leg===undefined) b.leg=1;
+    const goingIn = (b.state==='in'||b.state==='here');
+    const dest = goingIn ? marketBuyerPos(b.k) : marketOffPos(b.k);
+    const tgt = (b.leg===0) ? marketGatePos(b.k) : dest;
     const dx=tgt.x-r.position.x, dz=tgt.z-r.position.z;
     const d=Math.hypot(dx,dz);
     if(d>0.25){
@@ -11326,6 +11866,10 @@ function updateBuyerBodies(dt,t){
       playClip(b.sk,'walk',0.2);
       const act=b.sk.actions.walk;
       if(act) act.timeScale=clamp(BUYER_WALK/CLIP_GROUND_SPEED.walk,0.35,2.2);
+    }else if(b.leg===0){
+      // At the gateway. The second leg starts on the next frame.
+      b.leg=1;
+      playClip(b.sk,'walk',0.2);
     }else{
       if(b.state==='in') b.state='here';
       else if(b.state==='out'){ b.state='away'; r.visible=false; }
@@ -11383,7 +11927,7 @@ function rebuildFieldsAfterChange(){
   for(let i=GROUND_SHADOWS.length-1;i>=0;i--) if(GROUND_SHADOWS[i].tag==='farm') GROUND_SHADOWS.splice(i,1);
   for(let i=FENCE_POSTS.length-1;i>=0;i--) if(FENCE_POSTS[i].tag==='farm') FENCE_POSTS.splice(i,1);
   for(let i=FENCE_RAILS.length-1;i>=0;i--) if(FENCE_RAILS[i].tag==='farm') FENCE_RAILS.splice(i,1);
-  ringFence(farmFenceZone(), {from:-8.6, to:0.6}, 'farm');
+  ringFence(farmFenceZone(), {from:-8.6, to:0.6}, 'farm', FARM_GATE);
   buildStumps();
   fenceFields=buildFences(); fenceFields.forEach(m=>scene.add(m));
   if(shadowField && shadowField.parent) shadowField.parent.remove(shadowField);
@@ -11535,6 +12079,36 @@ function clearStump(k){
   return true;
 }
 
+/* =====================================================================
+   HOW BIG A SHEEP IS — one number, and four derived from it
+   =====================================================================
+   The owner played v10.0: "Current sheep are visually far too small ...
+   approximately DOUBLE current size", with the standing instruction to judge
+   the result rather than preserve exactly 2.000 if it looked wrong.
+
+   It was 0.95, and 0.95 was itself a correction — the sphere-sheep before it
+   stood 2.09 units, TALLER than the farmer, and nobody caught it because a
+   field of five spheres has nothing in it to judge scale against. That fix
+   over-corrected. Measured live at 0.95: sheep 1.09 units against a farmer of
+   1.65, so 66% of his height — but its BACK, which is what the eye actually
+   reads, sits at about his knee. It is a lamb-sized prop, not livestock.
+
+   Photographed at 0.95 / 1.35 / 1.60 / 1.90 standing beside the farmer at the
+   closest zoom the game allows. 1.90 is the one that looks like an animal: the
+   back comes to the farmer's waist, the body has mass, and it still reads as
+   clearly shorter than him. That is 2.0x, so the owner's estimate was right.
+
+   DERIVED, NEVER RE-TYPED. Three tuned numbers were all measured against a
+   0.95 sheep and are all wrong for a 1.9 one — the collision disc (you would
+   walk through the fleece), the flock's separation (they would overlap
+   lengthways), and the stride length (a doubled animal taking the old step
+   scurries, which the gait comment already warns about by name). Expressing
+   them as multiples of SHEEP_K means changing the size again moves all four
+   together instead of leaving three of them silently stale. */
+const SHEEP_SCALE = 1.90;
+const SHEEP_TUNED_AT = 0.95;                       // what those three were measured against
+const SHEEP_K = SHEEP_SCALE / SHEEP_TUNED_AT;
+
 function spawnSheep3D(){
   const z=ZONES[1];
   const sh=makeSheep();
@@ -11543,12 +12117,8 @@ function spawnSheep3D(){
   sh.userData.type='sheep'; sh.userData.idx=sheep3D.length;
   sh.userData.wanderT=Math.random()*4;
   sh.userData.tgt={x:sh.position.x,z:sh.position.z};
-  /* 0.95, down from 1.25. The old sphere-sheep stood 1.67 units tall and that
-     scale made it 2.09 -- TALLER THAN THE FARMER, who is 1.75. Nobody caught
-     it because a field of five spheres has nothing in it to judge scale
-     against; standing a real sheep next to a real person is what made it
-     obvious. The generated model is 1.15, so this puts it at 1.09: about chest
-     height on the farmer, which is what a sheep is. */
+  /* THE SIZE IS SHEEP_SCALE, and every number that depends on it is DERIVED
+     from it rather than typed again. See the constant for the measurements. */
   /* A MOVING BLOCKER, and the only one in the game.
 
      Every other blocker is a fixed disc written once by buildWorld(). A sheep
@@ -11564,10 +12134,16 @@ function spawnSheep3D(){
      across, but blocking the whole of it makes five wandering animals into
      five roadblocks in a small meadow. At 0.42 the player stops 0.84 from the
      centre -- against its flank rather than its nose -- so you cannot walk
-     THROUGH a sheep, but you can always get past one. */
-  sh.userData.blocker={x:sh.position.x, z:sh.position.z, r:0.42};
+     THROUGH a sheep, but you can always get past one.
+
+     SCALED WITH THE ANIMAL. That 0.42 was about half the width of a 0.95
+     sheep, so it is a statement about the sheep's body and not a free
+     constant. Left alone on a doubled animal the player would stop 0.84 from
+     the centre of something 1.5 units wide and 3.0 long — i.e. visibly inside
+     the fleece, which is exactly the kind of clipping the owner notices. */
+  sh.userData.blocker={x:sh.position.x, z:sh.position.z, r:0.42*SHEEP_K};
   BLOCKERS.push(sh.userData.blocker);
-  sh.scale.setScalar(0.95);
+  sh.scale.setScalar(SHEEP_SCALE);
   scene.add(sh); sheep3D.push(sh);
 }
 
@@ -11611,7 +12187,28 @@ function sync3DFarm(){
    crop after a seed upgrade — the exact bug the old per-kind `visible` flags
    allowed, because whichever holder was showing stayed showing until someone
    remembered to hide it. */
+/* THE LAST CLOCK THIS WAS GIVEN, and it is the fix for a defect that has been
+   in the register as P2-2 since the core-loop pass: "the ready-crop pulse is
+   cancelled".
+
+   The pulse is applied here, from the tick, WITH a clock. But sync3DFarm() also
+   calls this — without one — and it runs after updateWorldLife() in the same
+   presentation block, on nearly every frame, because `changed` is true whenever
+   any plot is growing. So the pulse was written and then immediately
+   overwritten, every frame, and the authored "this one is ready" motion has
+   never drawn a single frame in the game.
+
+   Remembering the clock rather than threading it through fifteen call sites is
+   the smaller change AND the more robust one: every one of those callers is
+   asking "make the plants match the state", none of them is asking "stop the
+   animation", and a caller that has no clock should not be able to cancel one
+   by omission. That is precisely how this broke.
+
+   Ripe crops are the thing the player is looking for on every lap of the farm,
+   so this is the most-seen 3.5% of scale in the game. */
+let _cropClock;
 function syncCropInstances(t){
+  if(t!==undefined) _cropClock=t; else t=_cropClock;
   if(!CROP_SLOTS.length) return;
   const kind=FARM.crops[S.cropTier];
   for(let i=0;i<CROP_SLOTS.length;i++){
@@ -12211,10 +12808,14 @@ function pressAnchor(a){
   S.coins-=cost; a.act();
   // Unlocking the meadow is the one purchase that opens a whole second
   // business, so it overrides the ordinary buy sound with the rising sweep.
-  // Buying a sheep gets the buy sound plus a bleat a beat later — scheduled on
-  // the audio clock via sfx()'s delay, not on a setTimeout.
+  //
+  // THE BLEAT MOVED TO THE SHEEP ITSELF. It was `if(a.key==='meadow.sheep')`
+  // here, which tied a sound about an ANIMAL to the identity of the button
+  // that bought it — so the moment that button moved into the zone dock the
+  // bleat stopped happening, silently, with nothing red. It now lives in the
+  // shop item's own buy(), which is the one thing both paths call.
   if(a.key==='meadow.open'){ sfx('unlock'); haptic('heavy'); }
-  else { sfx('buy'); haptic('success'); if(a.key==='meadow.sheep') sfx('baa',0.18); }
+  else { sfx('buy'); haptic('success'); }
   renderAll(); save();
 }
 
@@ -12431,19 +13032,25 @@ function buildAnchors(){
   // The Harvest Bot's button is gone with the item it bought.
 
   /* --- 4.4: the meadow ---
-     "Unlock Meadow" and "Buy Sheep" share stack 0 deliberately: the unlock
-     hides itself the moment it is bought (the shop item's own hidden()), so
-     the two can never be on screen together. */
+     ONE ANCHOR LEFT, AND IT IS THE UNLOCK (owner ruling 2026-08-09). Buy
+     Sheep, Wool Quality and Quick Shears used to hang here as three stacked
+     world buttons over the middle of the meadow; they are meadow-WIDE, so they
+     moved into the zone dock with the farm's two. Removed rather than hidden:
+     a second live purchase path for the same item is exactly the "hidden
+     duplicate path" the ruling asks not to leave behind, and it would also
+     have charged twice through two different code paths.
+
+     It fixed a real defect on the way out. Photographed at iPhone width, the
+     three stacked cards ran off the RIGHT EDGE of the screen with their prices
+     cut in half — "3500" reading as "350". A bottom strip cannot do that.
+
+     THE UNLOCK STAYS IN THE WORLD because it buys a REGION, and a region is
+     bought standing on the ground it opens — the same rule the west field and
+     every crop bed follow. It also has to be pressable BEFORE the meadow
+     exists, which is precisely when its dock does not. */
   const meadowHub={x:ZONES[1].cx, z:ZONES[1].cz};
   itemAnchor(MEADOW_SHOP,'open', {icon:'🔓',group:'meadow',stack:0,
     pos:()=>({x:meadowHub.x,y:5.0,z:meadowHub.z})});
-  itemAnchor(MEADOW_SHOP,'sheep',{icon:'🐑',group:'meadow',stack:0,
-    pos:()=>({x:meadowHub.x,y:5.0,z:meadowHub.z})});
-  itemAnchor(MEADOW_SHOP,'wool', {icon:'🧶',up:true,group:'meadow',stack:1,
-    pos:()=>({x:meadowHub.x,y:5.0,z:meadowHub.z})});
-  itemAnchor(MEADOW_SHOP,'shear',{icon:'✂️',up:true,group:'meadow',stack:2,
-    pos:()=>({x:meadowHub.x,y:5.0,z:meadowHub.z})});
-  // The Wool Bot's button is gone with the item it bought.
 
   /* --- the market: one order card per stand ---------------------------
      A BUYER'S BUTTON IS A WORLD ANCHOR LIKE ANY OTHER, which is what gives it
@@ -12454,6 +13061,14 @@ function buildAnchors(){
   for(let k=0;k<BUYER_SLOTS;k++){
     addAnchor({
       key:'buyer'+k,
+      /* STACKED, because all three slots now stand at ONE counter. They used to
+         be three stalls six units apart, so three cards projected to three
+         different points on screen and needed no grouping. With one hero stand
+         they project to the SAME point: photographed, the three orders drew
+         exactly on top of each other and only the last one was visible, so two
+         thirds of the market's income was invisible. The anchor system's own
+         stacking is what this is for. */
+      group:'market', stack:k,
       icon:()=>{ const b=S.buyers[k]; return (b&&ITEMS[b.item])?ITEMS[b.item].icon:'🧺'; },
       pos:()=>{ const p=marketStandPos(k); return {x:p.x,y:4.6,z:p.z}; },
       hidden:()=>!(S.buyers && S.buyers[k] && S.buyers[k].item),
@@ -12558,7 +13173,22 @@ function buildAnchors(){
   for(let i=0;i<FARM.maxPlots;i++){
     addGauge({
       key:'grow.plot'+i,
-      pos:()=>{ const p=plotWorldPos(i); return {x:p.x,y:2.6,z:p.z}; },
+      /* 3.6, RAISED FROM 2.6 (2026-08-09). An independent review of the
+         screenshots put this first: standing on a growing bed, the countdown
+         ring is drawn exactly over the farmer's head and ERASES HIS FACE — a
+         headless body with a white disc where the head was, in a quarter of
+         the frames.
+
+         2.6 looks like it clears a 1.65-unit character and does not, because
+         the camera looks down 38 degrees: a vertical offset projects to only
+         cos(38) of itself on screen, so 0.95 units of world clearance became
+         about 47 screen pixels against a ring roughly 70 across.
+
+         3.6 was photographed and still sat on the brim of his hat, so 4.4 —
+         which is a full ring's diameter clear of the top of the tallest thing
+         that can stand on a bed. Judged from the picture, twice, because the
+         arithmetic above gets the direction right and not the margin. */
+      pos:()=>{ const p=plotWorldPos(i); return {x:p.x,y:4.4,z:p.z}; },
       read:()=>{
         if(!plotOpen(i)) return null;            // bed not working yet
         const p=S.plots[i];
@@ -12573,8 +13203,13 @@ function buildAnchors(){
       // sheep3D can be shorter than S.sheep — a sheep exists in state before
       // its mesh is built. read() culls that case, and this stays defensive
       // anyway because pos() is on the per-frame path.
+      /* 4.3, RAISED FROM 2.8. Same defect, and this one was CREATED on
+         2026-08-09 by doubling the sheep: at scale 1.90 the animal stands
+         2.19 units tall, so a ring at 2.8 had six-tenths of a unit of
+         clearance over its own subject. Derived from the sheep's measured
+         height rather than picked, so the next size change carries it. */
       pos:()=>{ const m=sheep3D[i];
-                return m?{x:m.position.x,y:2.8,z:m.position.z}:{x:0,y:0,z:0}; },
+                return m?{x:m.position.x,y:1.15*SHEEP_SCALE+2.1,z:m.position.z}:{x:0,y:0,z:0}; },
       read:()=>{
         if(!S.meadowOpen) return null;
         const sh=S.sheep[i], m=sheep3D[i];
@@ -12874,14 +13509,14 @@ function tapWorld(e){
       if(!nodeReady(id)){ farmerSay('Still growing back.'); sfx('denied'); return; }
       orderJob('node',id); return;
     }
-    /* TAPPING THE BARN DOES NOT OPEN ANYTHING ANY MORE. The farm's upgrades
-       live on the doorstep outside it — walk into the ring and the cards come
-       up. A tap that opened a panel from across the farm was the one
-       interaction left in the game that did not require the farmer to be
-       there. Answered rather than ignored, because a dead tap on the biggest
-       building in the world reads as broken. */
+    /* THE BARN OWNS NOTHING NOW (owner ruling 2026-08-09). It briefly owned
+       a sheet, then a doorstep ring outside its door; both are gone and the
+       farm's upgrades belong to the farm. The tap is still ANSWERED, because a
+       dead tap on the biggest building in the world reads as broken — it just
+       has nothing to open, and says something true instead of directing the
+       player to a ring that no longer exists. */
     if(o.userData.type==='farmhouse'){
-      farmerSay(farmerInFarmhouse() ? 'Have a look.' : 'Step onto the ring by the door.');
+      farmerSay(dockContextNow() ? 'Everything the farm needs is down there.' : 'The barn keeps it all dry.');
       sfx('tap'); return;
     }
   }
@@ -13052,11 +13687,13 @@ const GUIDES = [
   { key:'house',
     when:()=>bedsOpen()>=2 && S.coins>=45,
     done:()=>S.upgLevels.speed>0 || S.cropTier>0,
-    // The DOORSTEP, not the building. The upgrades appear when the farmer
-    // stands in the ring, so pointing at the roof would point at the one part
-    // of the barn that does nothing.
-    at:  ()=>farmhousePos(),
-    say: 'Stand on the ring by the barn door — the farm upgrades are there.' },
+    /* THE MIDDLE OF THE FARM, because the farm is now the trigger. This used
+       to point at a 4.2-unit ring outside the barn and say "stand on the
+       ring", which was a place the player had to be TAUGHT. Standing in your
+       own farm is not — so the pan is really only telling them the cards
+       exist, and the arrow lands where they will already be. */
+    at:  ()=>({x:ZONES[0].cx, z:ZONES[0].cz}),
+    say: 'Your farm upgrades are at the bottom whenever you are standing in it.' },
   /* THE AXE ARRIVES HERE, GRANTED RATHER THAN SOLD. The brief is explicit that
      there is no early axe purchase: the tutorial hands it over. Fires when the
      fence is the next thing to save for, which is when timber first matters. */
@@ -13209,12 +13846,33 @@ function checkGuides(){
    the farmer visibly kneels for it instead of the crop evaporating under him. */
 const JOB_ACT_R   = 2.4;    // close enough to be AT the thing, not near it
 const JOB_GIVEUP  = 14;     // seconds of not arriving before we abandon it
+
+/* THE TWO SPEEDS OF WORK, and which verb gets which.
+
+   QUICK (`quick:true`) — picking a crop and taking a fleece. Both are done
+   dozens of times a lap, both are one-handed, and both now play the ADDITIVE
+   reach (see makePluckClip) which never takes the player's feet. Half a
+   second, paid a third of the way in, and the joystick answers throughout.
+
+   PLANTED — pulling a stump and chopping a tree. Both are rare, both are
+   two-handed heaves, and planting the feet is what they LOOK like. They keep
+   their full-body clips. They are no longer a trap either: the feet are
+   released the instant the reward lands, so the longest the stick can be
+   unanswered anywhere in the game is now the 1.15s up to the second axe swing,
+   and only if the player does not ask for it back.
+
+   The owner's ruling was about harvesting and wool specifically; extending
+   only the RELEASE (not the gesture) to the other two is the smallest change
+   that makes "the player is never locked out" true everywhere rather than in
+   two places out of four. */
+const PLUCK_SECS  = 0.50;   // the whole reach, from neutral back to neutral
+const PLUCK_BEAT  = 0.17;   // the hand is at the crop here — see PHASES 0.34
 const JOB_SPECS = {
-  plot : { clip:'harvest', dur:1.1, beat:0.42,
+  plot : { quick:true, dur:PLUCK_SECS, beat:PLUCK_BEAT,
            pos:  j => plotWorldPos(j.idx),
            valid:j => S.plots[j.idx] && S.plots[j.idx].ready && plotOpen(j.idx),
            done: j => harvest(j.idx) },
-  sheep: { clip:'shear',   dur:1.4, beat:0.55,
+  sheep: { quick:true, dur:PLUCK_SECS, beat:PLUCK_BEAT,
            pos:  j => { const m=sheep3D[j.idx]; return m ? {x:m.position.x, z:m.position.z} : null; },
            valid:j => S.sheep[j.idx] && S.sheep[j.idx].ready,
            done: j => collectWool(j.idx) },
@@ -13259,9 +13917,15 @@ function orderJob(kind, idx, src){
      second tap on a target he is already walking to is a reasonable thing for
      a player to do, and it deserves the same "yes, I heard you". */
   if(R.job && R.job.kind===kind && R.job.idx===idx){ sfx('tap'); return false; }
-  if(R.job && R.job.phase==='act'){
-    // Mid-clip: let it finish, but SAY so. Silence here reads as a dead tap --
-    // the old path always answered, even if only to say "too far".
+  /* MID-ACTION, AND STILL OWED SOMETHING. Let it finish, but SAY so — silence
+     here reads as a dead tap.
+
+     Narrowed on the owner's responsiveness ruling. It used to refuse for the
+     whole clip, which on a six-bed lap meant a player tapping ahead to the next
+     bed was answered with a rejection buzz most of the time. A gesture that has
+     already paid, or one that never held the body in the first place, has
+     nothing left to protect, so the next order is simply taken. */
+  if(R.job && R.job.phase==='act' && !R.job.paid && !JOB_SPECS[R.job.kind].quick){
     sfx('denied'); haptic('light');
     return false;
   }
@@ -13290,11 +13954,23 @@ function runFarmerJob(dt,t){
   if(!tgt){ if(job.phase!=='act') R.job=null; return job.phase==='act'?{vx:0,vz:0}:null; }
 
   if(job.phase==='act'){
-    // Feet planted. The reward lands part-way through the clip rather than at
-    // its start, so the crop leaves the ground as he pulls it and not before.
+    // The reward lands part-way through the gesture rather than at its start,
+    // so the crop leaves the ground as his hand closes and not before.
     if(!job.paid && t>=job.actAt){ job.paid=true; spec.done(job); }
-    if(t>=job.endAt) R.job=null;
-    return {vx:0, vz:0};
+    if(t>=job.endAt){
+      R.job=null;
+      // The facing was ours, not the clip selector's — hand it back, or he
+      // stays turned toward a bed he finished with.
+      if(!R.actionClip) R.faceH=undefined;
+    }
+    /* THE FEET ARE HELD ONLY WHILE SOMETHING IS STILL AT STAKE.
+
+       A quick verb never holds them at all, and a planted one lets go the
+       instant it has paid. Returning null rather than a zero velocity is the
+       difference between "stand still" and "I am not asking for anything" —
+       the latter lets the joystick through and lets him coast to a stop on the
+       existing acceleration instead of snapping. */
+    return (spec.quick || job.paid) ? null : {vx:0, vz:0};
   }
 
   const dx=tgt.x-R.root.position.x, dz=tgt.z-R.root.position.z;
@@ -13315,13 +13991,21 @@ function runFarmerJob(dt,t){
     job.phase='act';
     job.actAt=t+spec.beat;
     job.endAt=t+spec.dur;
-    playAction(spec.clip, spec.dur, tgt.x, tgt.z);
+    if(spec.quick){
+      /* THE ADDITIVE REACH. Only the facing and the gesture — the body is left
+         to whatever the locomotion clip is already doing, which is what lets
+         this play on a farmer who is still walking. */
+      faceAt(tgt.x, tgt.z);
+      playPluck();
+    }else{
+      playAction(spec.clip, spec.dur, tgt.x, tgt.z);
+    }
     /* TWO SWINGS, TWO HITS. The chop clip is two swings and the timber lands on
        the SECOND — chopNode() plays the axe as it pays. Without this the first
        swing is silent, which reads as a miss. Scheduled a beat into the clip
        rather than on frame zero, because the axe is still on its way up then. */
     if(spec.clip===CHOP_CLIP) sfx('chop',0.34);
-    return {vx:0, vz:0};
+    return spec.quick ? null : {vx:0, vz:0};
   }
   /* COULD NOT GET THERE. A fence, a building, or a sheep that keeps wandering
      off. Abandoning is the honest outcome -- the alternative is granting a
@@ -13353,17 +14037,24 @@ function updateCharacter(dt,t){
   if(driving && R.job && R.job.src==='tap' && R.job.phase==='walk') cancelJob();
   const jobVel=runFarmerJob(dt,t);
   const acting=!!(R.job && R.job.phase==='act');
+  /* PLANTED, AND ONLY WHILE SOMETHING IS AT STAKE. This must agree exactly with
+     what runFarmerJob() returns for the same frame, or the two would disagree
+     about whether he is allowed to move and the loser would be the joystick. */
+  const planted=acting && !JOB_SPECS[R.job.kind].quick && !R.job.paid;
   const wantVx=driving?joy.vx*WALK_SPEED*joy.mag:(jobVel?jobVel.vx:0);
   const wantVz=driving?joy.vy*WALK_SPEED*joy.mag:(jobVel?jobVel.vz:0);
   const accel=Math.min(1, dt*((wantVx||wantVz)?10:16));
   R.vel.x+=(wantVx-R.vel.x)*accel;
   R.vel.z+=(wantVz-R.vel.z)*accel;
-  /* FEET PLANTED, IMMEDIATELY. Easing to a stop takes about nine frames, and
-     the clip selector kills an action clip the moment measured speed reads
-     above 0.06 -- so easing would cancel the kneel before it drew a frame,
-     which is exactly the defect the owner reported. Standing still to work is
-     also simply what the action is. */
-  if(acting){ R.vel.x=0; R.vel.z=0; }
+  /* FEET PLANTED, IMMEDIATELY -- for the two heaves that still plant them.
+     Easing to a stop takes about nine frames, and the clip selector kills an
+     action clip the moment measured speed reads above 0.06, so easing would
+     cancel a full-body clip before it drew a frame.
+
+     The quick verbs are deliberately NOT here any more. Their gesture is
+     additive and survives being walked out of, so there is nothing to protect
+     and no reason to take the stick away. */
+  if(planted){ R.vel.x=0; R.vel.z=0; }
   const speed=Math.hypot(R.vel.x,R.vel.z);
 
   let nx=Math.max(-WORLD.w/2+3,Math.min(WORLD.w/2-3,R.root.position.x+R.vel.x*dt));
@@ -13413,10 +14104,13 @@ function updateCharacter(dt,t){
   if(speed>1.6){
     const targetH=Math.atan2(R.vel.x,R.vel.z);
     R.heading+=shortestAngle(targetH-R.heading)*Math.min(1,dt*10);
-  }else if(R.actionClip && R.faceH!==undefined){
+  }else if((R.actionClip||acting) && R.faceH!==undefined){
     // Standing still, mid-action: turn toward whatever he is acting ON. A shade
     // slower than the walking turn so it reads as looking down at the work
     // rather than snapping round to it.
+    // `acting` is here for the quick verbs, which set faceH without ever
+    // setting actionClip — without it a pluck would collect over his shoulder,
+    // which is the exact defect the facing was added to fix.
     R.heading+=shortestAngle(R.faceH-R.heading)*Math.min(1,dt*9);
   }
   R.root.rotation.y=R.heading;
@@ -13721,11 +14415,22 @@ function panTargetFor(id){
   // half-built map as a wobble or an error.
   if(!key||key===PAN_NONE) return null;
   if(key==='farm.beds') return {x:ZONES[0].cx, z:ZONES[0].cz};
-  /* The barn. Derived from ZONES[0] exactly as farm.beds is, and exactly as
-     buildWorld() places the barn itself, so the pan and the building cannot
-     drift apart. The seed and speed upgrades live inside it now (see
-     openFarmhouse), so the tasks that ask for them point here. */
-  if(key==='farm.house') return {x:ZONES[0].cx-4, z:ZONES[0].cz-ZONES[0].hz};
+  /* THE TWO REGIONS THAT OWN UPGRADES, for the tasks that ask you to buy one.
+
+     These replace `farm.house`, which pointed at the barn because the barn
+     briefly owned the farm's upgrades. It does not any more (owner ruling
+     2026-08-09) — the region does — so pointing at the roof would send the
+     player to the one building in the game that now does nothing.
+
+     `meadow.zone` also replaces four ANCHOR keys — meadow.sheep, meadow.wool
+     and meadow.shear — which stopped existing when those three purchases moved
+     into the zone dock. An anchor key that no longer resolves returns null
+     here, and null is SILENT by design two lines above: eight of the game's
+     twenty-nine tasks would have quietly stopped pointing anywhere at all.
+     Their coordinates are unchanged — every one of those anchors stood at the
+     meadow hub, which is this exact point. */
+  if(key==='farm.zone')   return {x:ZONES[0].cx, z:ZONES[0].cz};
+  if(key==='meadow.zone') return {x:ZONES[1].cx, z:ZONES[1].cz};
   const a=anchors.find(an=>an.key===key);
   if(!a) return null;
   const p=a.pos();
@@ -13966,9 +14671,13 @@ function updateWorldLife(dt,t){
       const step=1.4*dt;
       sh.position.x+=dx/d*step; sh.position.z+=dz/d*step;
       sh.rotation.y+=shortestAngle(Math.atan2(dx,dz)+SHEEP_FACING-sh.rotation.y)*Math.min(1,dt*4);
-      // 0.85 units per full stride, measured against the model: much shorter
-      // and it scurries, much longer and it lopes like something far bigger.
-      sh.userData.phase=(sh.userData.phase||0)+(step/0.85)*Math.PI*2;
+      /* 0.85 units per full stride, measured against the model: much shorter
+         and it scurries, much longer and it lopes like something far bigger.
+         SCALED WITH THE ANIMAL — a leg twice as long covers twice the ground
+         per step. This is geometry, not taste: left at 0.85 the doubled sheep
+         would take the old stride at twice the size, which is precisely the
+         "it scurries" failure this number was chosen to avoid. */
+      sh.userData.phase=(sh.userData.phase||0)+(step/(0.85*SHEEP_K))*Math.PI*2;
       if(g){
         const ph=sh.userData.phase;
         g.position.y=Math.abs(Math.sin(ph))*0.075;
@@ -14022,7 +14731,14 @@ function updateWorldLife(dt,t){
      privileged and the flock cannot drift as a whole. Applied to POSITION and
      not to the wander target: the targets stay random, so the flock still
      wanders naturally and simply refuses to overlap on the way. */
-  const SHEEP_SEP=2.5;
+  /* SCALED WITH THE ANIMAL, and the ring measurement above is now the FLOOR
+     rather than the answer. 2.5 was derived from when two 34px countdown rings
+     touch, and separately noted that "a sheep is ~1.5 units wide, so a spread
+     below the collision threshold was always reachable". On a doubled sheep
+     the body is ~3.0 units nose to tail, so 2.5 no longer even keeps two of
+     them from overlapping lengthways — the UI reason has been overtaken by a
+     physical one. */
+  const SHEEP_SEP=2.5*SHEEP_K;
   for(let a=0;a<sheep3D.length;a++){
     for(let b=a+1;b<sheep3D.length;b++){
       const A=sheep3D[a], B=sheep3D[b];
@@ -14171,8 +14887,13 @@ function collectWool(i,silent){
 
        Only when somebody is actually shearing it. The hold exists to keep the
        sheep under the clip; with no clip playing it is just a sheep stopping
-       dead for a second and a half for no reason the player can see. */
-    if(!silent) m.userData.heldUntil=(FarmerRig&&FarmerRig.animT||0)+1.4;
+       dead for a second and a half for no reason the player can see.
+
+       TIED TO THE GESTURE'S OWN LENGTH, not to a number typed twice. It was
+       1.4 — the old shear clip — and when the collect became a half-second
+       additive reach that would have left the animal frozen for nearly a
+       second after the farmer had finished and walked away. */
+    if(!silent) m.userData.heldUntil=(FarmerRig&&FarmerRig.animT||0)+PLUCK_SECS;
   }
   /* THE ANIMATION BELONGS TO runFarmerJob(), not here -- same reason as
      harvest(). The wool bot and the Insta-Wool ad both call this too, and they
@@ -14283,7 +15004,9 @@ const MEADOW_SHOP=[
    sub:()=>`${S.sheep.length}/${MEADOW.costs.sheep.max} sheep`,
    maxed:()=>S.sheep.length>=MEADOW.costs.sheep.max,cost:()=>meadowCost('sheep'),
    locked:()=>!S.meadowOpen,
-   buy:()=>{S.sheep.push(newSheep());spawnSheep3D();farmerSay('Welcome, sheep! 🐑');}},
+   // The bleat is HERE, not on a button — see pressAnchor(). Scheduled on the
+   // audio clock via sfx()'s delay rather than on a setTimeout.
+   buy:()=>{S.sheep.push(newSheep());spawnSheep3D();sfx('baa',0.18);farmerSay('Welcome, sheep! 🐑');}},
   {key:'wool',name:'Wool Quality',icon:'🧶',
    sub:()=>`+50% value · Lv ${S.meadowLv.wool}`,
    maxed:()=>S.meadowLv.wool>=MEADOW.costs.wool.max,cost:()=>meadowCost('wool'),
@@ -14634,7 +15357,7 @@ function renderAll(){
   // a rewarded ad can all add coins behind it -- and it used to render only when
   // opened, so an affordable upgrade sat there reading "cannot afford" while
   // buying perfectly well if tapped. Two guards on one value, disagreeing.
-  if(typeof farmhouseOpen==='function' && farmhouseOpen()) renderFarmDock();renderHeader();renderTasks();renderRewards();sync3DFarm();sync3DMeadow();refreshAnchors();}
+  if(typeof farmhouseOpen==='function' && farmhouseOpen()) renderZoneDock();renderHeader();renderTasks();renderRewards();sync3DFarm();sync3DMeadow();refreshAnchors();}
 function fmt(n){
   if(n>=1e6)return (n/1e6).toFixed(1)+'M';
   if(n>=1e4)return (n/1e3).toFixed(1)+'K';
@@ -15287,32 +16010,36 @@ function openSettings(){
    air beside the barn -- permanently, over the ground the player walks on. The
    owner disliked the look and they were also in the way.
 
-   The barn IS the farm's building, so it owns the farm's upgrades: walk up and
-   tap it. The closed world has nothing hanging over it, and the sheet reuses
-   the Settings sheet's shape, easing and close button rather than introducing a
-   second panel idiom.
-
    THIS IS NOT A SHOP PANEL COMING BACK. The shop sheet that was deleted in
    Phase 5 listed everything the game sold, including things whose location
    mattered -- plots, the west field, the meadow -- and that is exactly what
-   world-anchored buttons do better. These two are farm-WIDE: Faster Growth
-   speeds every bed, not the one you are standing on, so there is no ground to
-   anchor them to. That is why these two, and only these two, live here. */
-const FARMHOUSE_KEYS = ['speed','seeds'];
-/* "Open" now means the dock is up, which means the farmer is standing on the
-   doorstep. Kept under the same name because the one thing that asks — the
-   guidance runner, which must not pan the camera while the player is reading
-   a panel — wants exactly the same answer it always wanted. */
-function farmhouseOpen(){ const p=$('#farmDock'); return !!(p&&p.classList.contains('show')); }
-/* One card per farm-wide upgrade, written when the dock opens and after every
-   purchase. Not on the frame clock: the dock is only ever on screen while the
-   farmer stands still on a four-unit patch, and rebuilding it per frame would
+   world-anchored buttons do better. What lives here is what applies to a whole
+   REGION: Faster Growth speeds every bed, not the one you are standing on, and
+   Wool Quality improves every sheep. There is no single piece of ground to
+   anchor either to, which is precisely why they belong to the region instead.
+
+   WHICH REGION, AND WHICH ITEMS, IS ZONE_DOCKS. Not a constant here — that was
+   FARMHOUSE_KEYS, and it could only ever describe one place. */
+/* "Open" means the dock is up. Kept under this name because the one thing that
+   asks — the guidance runner, which must not pan the camera while the player is
+   reading a panel — wants exactly the same answer it always wanted. */
+function farmhouseOpen(){ const p=$('#zoneDock'); return !!(p&&p.classList.contains('show')); }
+/* One card per upgrade IN THE CURRENT CONTEXT, written when the dock opens and
+   after every purchase. Not on the frame clock: rebuilding it per frame would
    be BACKLOG 3.6's bug in the one place the player is actually looking. */
-function renderFarmDock(){
-  const box=$('#farmDock'); if(!box||!S) return;
+function renderZoneDock(){
+  const box=$('#zoneDock'); if(!box||!S) return;
+  const d=dockContextNow();
   box.innerHTML='';
-  for(const key of FARMHOUSE_KEYS){
-    const it=shopItem(FARM_SHOP,key); if(!it) continue;
+  if(!d) return;
+  const list=d.shop();
+  for(const key of d.items){
+    const it=shopItem(list,key); if(!it) continue;
+    /* A meadow upgrade the player cannot see the point of yet — Quick Shears
+       before there is a sheep — is simply not drawn. The shop items already
+       carry that judgement in hidden(); honouring it here keeps one answer to
+       "should this be offered" instead of two. */
+    if(it.hidden && it.hidden()) continue;
     const maxed=!!(it.maxed&&it.maxed());
     const cost=maxed?0:it.cost();
     const can=!maxed&&S.coins>=cost;
@@ -15336,14 +16063,20 @@ function renderFarmDock(){
          buttons had this bug the other way round once: pressAnchor() charged
          and then called a grant that charged again, and the second charge was
          invisible. buy() never touches coins -- that is this function's job. */
-      const item=shopItem(FARM_SHOP,key); if(!item||item.maxed()) return;
+      /* RE-READ FROM `list`, THE CONTEXT'S OWN SHOP, not from FARM_SHOP. This
+         line said FARM_SHOP while the dock had only one context, and it was
+         the single most likely place for the generalisation to go wrong: a
+         meadow card would have looked correct, charged the meadow price, and
+         then bought the FARM item of the same key — or, for 'sheep', found
+         nothing and silently done nothing after taking the money. */
+      const item=shopItem(list,key); if(!item||item.maxed()) return;
       const price=item.cost();
       if(!(S.coins>=price)){ sfx('denied'); haptic('warning'); bump(btn); return; }
       S.coins-=price;
       item.buy();
       sfx('buy'); haptic('medium');
       /* renderAll() already re-renders the dock while it is open, so the
-         trailing renderFarmDock() that used to be here was a SECOND full
+         trailing renderZoneDock() that used to be here was a SECOND full
          teardown — it destroyed the button under the player's finger a second
          time, so the press never visually released. */
       save(); renderAll();
@@ -15546,7 +16279,7 @@ function tick(nowMs){
     updateBuildFx(elapsed);
     // After updateCharacter(), so the dock opens on the frame he actually
     // arrives rather than one behind him.
-    updateFarmhouseZone(dt,elapsed);
+    updateZoneDock(dt,elapsed);
     updateCamera(dt);
     updateWorldLife(dt,elapsed);
     updateHUDWorld();
